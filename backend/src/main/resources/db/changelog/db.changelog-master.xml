@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+  xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+    http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+  <changeSet id="001-initial-schema" author="pactchain">
+
+    <createTable tableName="pacts">
+      <column name="id" type="VARCHAR(20)">
+        <constraints primaryKey="true" nullable="false"/>
+      </column>
+      <column name="contract_id" type="VARCHAR(80)">
+        <constraints unique="true"/>
+      </column>
+      <column name="title" type="VARCHAR(120)">
+        <constraints nullable="false"/>
+      </column>
+      <column name="description" type="VARCHAR(1000)"/>
+      <column name="creator" type="VARCHAR(80)">
+        <constraints nullable="false"/>
+      </column>
+      <column name="stake_amount" type="BIGINT">
+        <constraints nullable="false"/>
+      </column>
+      <column name="max_participants" type="INT">
+        <constraints nullable="false"/>
+      </column>
+      <column name="deadline" type="BIGINT">
+        <constraints nullable="false"/>
+      </column>
+      <column name="resolution_mode" type="VARCHAR(20)">
+        <constraints nullable="false"/>
+      </column>
+      <column name="judge" type="VARCHAR(80)"/>
+      <column name="status" type="VARCHAR(20)" defaultValue="OPEN">
+        <constraints nullable="false"/>
+      </column>
+      <column name="winner" type="VARCHAR(80)"/>
+      <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+        <constraints nullable="false"/>
+      </column>
+    </createTable>
+
+    <createTable tableName="invite_links">
+      <column name="code" type="VARCHAR(20)">
+        <constraints primaryKey="true" nullable="false"/>
+      </column>
+      <column name="pact_id" type="VARCHAR(20)">
+        <constraints nullable="false" foreignKeyName="fk_invite_pact" references="pacts(id)"/>
+      </column>
+      <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+        <constraints nullable="false"/>
+      </column>
+    </createTable>
+
+    <createTable tableName="wallet_interactions">
+      <column name="id" type="BIGINT" autoIncrement="true">
+        <constraints primaryKey="true" nullable="false"/>
+      </column>
+      <column name="wallet" type="VARCHAR(80)">
+        <constraints nullable="false"/>
+      </column>
+      <column name="action" type="VARCHAR(60)">
+        <constraints nullable="false"/>
+      </column>
+      <column name="pact_id" type="VARCHAR(20)"/>
+      <column name="meta" type="VARCHAR(2000)"/>
+      <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+        <constraints nullable="false"/>
+      </column>
+    </createTable>
+
+    <createIndex tableName="wallet_interactions" indexName="idx_interactions_wallet">
+      <column name="wallet"/>
+    </createIndex>
+
+    <createIndex tableName="wallet_interactions" indexName="idx_interactions_pact">
+      <column name="pact_id"/>
+    </createIndex>
+
+  </changeSet>
+</databaseChangeLog>

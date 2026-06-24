@@ -1,5 +1,6 @@
 "use client";
 
+import * as React from "react";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
@@ -36,6 +37,7 @@ function CreatePactForm() {
     mode: "MAJORITY" as ResolutionMode,
     judge: "",
   });
+  const [skipDescription, setSkipDescription] = useState(false);
 
   const set =
     (k: keyof typeof form) =>
@@ -99,15 +101,34 @@ function CreatePactForm() {
           />
         </Field>
 
-        <Field label={t("labels.description")}>
-          <textarea
-            className="flex min-h-[100px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 resize-none"
-            placeholder={t("placeholders.description")}
-            value={form.description}
-            onChange={set("description")}
-            maxLength={500}
-          />
-        </Field>
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center justify-between">
+            <label className="text-sm font-medium leading-none text-foreground">
+              {t("labels.description")}
+            </label>
+            <label className="flex items-center gap-2 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={skipDescription}
+                onChange={(e) => {
+                  setSkipDescription(e.target.checked);
+                  if (e.target.checked) setForm((f) => ({ ...f, description: "" }));
+                }}
+                className="h-4 w-4 rounded border-input text-primary focus:ring-primary bg-background"
+              />
+              <span className="text-xs text-muted-foreground">{t("labels.noDescription")}</span>
+            </label>
+          </div>
+          {!skipDescription && (
+            <textarea
+              className="flex min-h-[100px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 resize-none"
+              placeholder={t("placeholders.description")}
+              value={form.description}
+              onChange={set("description")}
+              maxLength={500}
+            />
+          )}
+        </div>
 
         <div className="grid grid-cols-2 gap-4">
           <Field label={t("labels.stake")}>
@@ -118,14 +139,7 @@ function CreatePactForm() {
           </Field>
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
-          <Field label={t("labels.deadlineDate")}>
-            <Input type="date" value={form.deadlineDate} onChange={set("deadlineDate")} required />
-          </Field>
-          <Field label={t("labels.deadlineTime")}>
-            <Input type="time" value={form.deadlineTime} onChange={set("deadlineTime")} required />
-          </Field>
-        </div>
+        <DeadlineField form={form} setForm={setForm} t={t} />
 
         <Field label={t("labels.mode")}>
           <div className="flex flex-col gap-3 mt-1">
@@ -178,6 +192,123 @@ function CreatePactForm() {
         </Button>
       </form>
     </main>
+  );
+}
+
+type DeadlinePreset = "1d" | "1w" | "1mo" | "custom";
+
+function addDays(days: number): { date: string; time: string } {
+  const d = new Date(Date.now() + days * 86_400_000);
+  const date = d.toISOString().slice(0, 10);
+  const time = d.toTimeString().slice(0, 5);
+  return { date, time };
+}
+
+function DeadlineField({
+  form,
+  setForm,
+  t,
+}: {
+  form: { deadlineDate: string; deadlineTime: string };
+  setForm: React.Dispatch<React.SetStateAction<{
+    title: string;
+    description: string;
+    stakeAmount: string;
+    maxParticipants: string;
+    deadlineDate: string;
+    deadlineTime: string;
+    mode: ResolutionMode;
+    judge: string;
+  }>>;
+  t: ReturnType<typeof useTranslations<"Create">>;
+}) {
+  const [preset, setPreset] = React.useState<DeadlinePreset | null>(null);
+
+  function applyPreset(p: DeadlinePreset) {
+    setPreset(p);
+    if (p === "1d") {
+      const { date, time } = addDays(1);
+      setForm((f) => ({ ...f, deadlineDate: date, deadlineTime: time }));
+    } else if (p === "1w") {
+      const { date, time } = addDays(7);
+      setForm((f) => ({ ...f, deadlineDate: date, deadlineTime: time }));
+    } else if (p === "1mo") {
+      const { date, time } = addDays(30);
+      setForm((f) => ({ ...f, deadlineDate: date, deadlineTime: time }));
+    } else {
+      setForm((f) => ({ ...f, deadlineDate: "", deadlineTime: "23:59" }));
+    }
+  }
+
+  const presets: { key: DeadlinePreset; label: string }[] = [
+    { key: "1d", label: t("deadline.presets.1d") },
+    { key: "1w", label: t("deadline.presets.1w") },
+    { key: "1mo", label: t("deadline.presets.1mo") },
+    { key: "custom", label: t("deadline.presets.custom") },
+  ];
+
+  return (
+    <div className="flex flex-col gap-3">
+      <label className="text-sm font-medium leading-none text-foreground">
+        {t("labels.deadline")}
+      </label>
+
+      {/* Preset pills */}
+      <div className="grid grid-cols-4 gap-2">
+        {presets.map((p) => (
+          <button
+            key={p.key}
+            type="button"
+            onClick={() => applyPreset(p.key)}
+            className={`py-2 px-2 rounded-lg border text-xs font-semibold transition-colors text-center ${
+              preset === p.key
+                ? "border-primary bg-primary/5 text-primary ring-1 ring-primary"
+                : "border-border bg-card text-muted-foreground hover:text-foreground hover:bg-muted"
+            }`}
+          >
+            {p.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Custom calendar — shown when preset is custom or when a preset was applied (so user can fine-tune) */}
+      {preset !== null && (
+        <div className={`grid gap-3 ${preset === "custom" ? "grid-cols-2" : "grid-cols-2"}`}>
+          <div className="flex flex-col gap-1.5">
+            <span className="text-xs text-muted-foreground font-medium">
+              {t("labels.deadlineDate")}
+            </span>
+            <Input
+              type="date"
+              value={form.deadlineDate}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, deadlineDate: e.target.value }))
+              }
+              required
+            />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <span className="text-xs text-muted-foreground font-medium">
+              {t("labels.deadlineTime")}
+            </span>
+            <Input
+              type="time"
+              value={form.deadlineTime}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, deadlineTime: e.target.value }))
+              }
+              required
+            />
+          </div>
+        </div>
+      )}
+
+      {preset === null && (
+        <p className="text-xs text-muted-foreground">
+          {t("deadline.hint")}
+        </p>
+      )}
+    </div>
   );
 }
 

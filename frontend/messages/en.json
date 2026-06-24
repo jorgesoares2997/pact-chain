@@ -34,10 +34,12 @@
     "labels": {
       "title": "Title",
       "description": "Description",
+      "noDescription": "No description",
       "stake": "Stake per person (USDC)",
       "maxParticipants": "Max participants",
       "deadlineDate": "Deadline date",
       "deadlineTime": "Deadline time",
+      "deadline": "Deadline",
       "mode": "Resolution mode",
       "judge": "Judge Stellar address"
     },
@@ -66,6 +68,15 @@
       "judgeRequired": "Judge address is required",
       "deadlineFuture": "Deadline must be in the future"
     },
+    "deadline": {
+      "hint": "Select a quick preset or pick a custom date.",
+      "presets": {
+        "1d": "1 Day",
+        "1w": "1 Week",
+        "1mo": "1 Month",
+        "custom": "Custom"
+      }
+    },
     "submit": "Create Pact",
     "submitting": "Creating…",
     "success": "Pact created! Share the invite link."
@@ -80,6 +91,16 @@
     "joinButton": "Stake {stake} USDC & Join",
     "joining": "Joining…",
     "success": "You joined the pact!"
+  },
+  "JoinDemo": {
+    "demoBadge": "Demo — no wallet required",
+    "demoDisclaimer": "This is a demo pact. No real USDC will be staked. Use it to explore the PactChain join flow before connecting your wallet.",
+    "noWalletNeeded": "No wallet needed — this is a simulated experience.",
+    "successTitle": "You joined the demo pact!",
+    "successDesc": "In a real pact, your USDC would now be locked in a Soroban smart contract on Stellar.",
+    "viewPact": "View Pact Dashboard",
+    "createOwn": "Create Your Own",
+    "demoNote": "No funds were moved. This was a demo."
   },
   "Dashboard": {
     "errorLoading": "Error loading pact",
@@ -125,12 +146,12 @@
     "backHome": "Back to home"
   },
   "Pacts": {
-    "title": "Pacts",
-    "subtitle": "Browse and join open commitment pools.",
-    "empty": "No pacts found for this filter.",
+    "title": "Directory",
+    "subtitle": "Discover and join active social commitments.",
+    "empty": "No pacts found matching this filter.",
     "filters": {
       "all": "All",
-      "open": "Open",
+      "open": "Open to Join",
       "active": "Active",
       "resolved": "Resolved"
     },
@@ -142,32 +163,32 @@
   },
   "Activity": {
     "title": "Activity",
-    "subtitle": "Live feed of protocol events.",
+    "subtitle": "Recent interactions on the PactChain protocol.",
     "events": {
       "joined": "joined",
       "staking": "staking",
       "won": "won",
       "locked": "locked",
-      "refunded": "was refunded from",
+      "refunded": "was refunded for",
       "created": "created",
-      "voted": "voted in"
+      "voted": "voted on"
     }
   },
   "Profile": {
-    "wallet": "Connected wallet",
+    "wallet": "Wallet",
     "disconnect": "Disconnect",
     "notConnected": {
-      "title": "No wallet connected",
-      "desc": "Connect your Freighter wallet to view your profile."
+      "title": "Not Connected",
+      "desc": "Please connect your wallet to view your profile."
     },
     "stats": {
-      "title": "Stats",
+      "title": "Your Stats",
       "locked": "Locked",
       "earned": "Earned",
-      "winRate": "Win rate"
+      "winRate": "Win Rate"
     },
     "history": {
-      "title": "My Pacts"
+      "title": "Your Pacts"
     },
     "settings": {
       "title": "Settings",

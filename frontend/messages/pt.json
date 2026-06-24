@@ -34,10 +34,12 @@
     "labels": {
       "title": "Título",
       "description": "Descrição",
+      "noDescription": "Sem descrição",
       "stake": "Aposta por pessoa (USDC)",
       "maxParticipants": "Máximo de participantes",
       "deadlineDate": "Data limite",
       "deadlineTime": "Hora limite",
+      "deadline": "Prazo",
       "mode": "Modo de resolução",
       "judge": "Endereço Stellar do Juiz"
     },
@@ -66,6 +68,15 @@
       "judgeRequired": "Endereço do juiz é obrigatório",
       "deadlineFuture": "O prazo deve ser no futuro"
     },
+    "deadline": {
+      "hint": "Selecione um prazo rápido ou escolha uma data personalizada.",
+      "presets": {
+        "1d": "1 Dia",
+        "1w": "1 Semana",
+        "1mo": "1 Mês",
+        "custom": "Personalizado"
+      }
+    },
     "submit": "Criar Pacto",
     "submitting": "Criando…",
     "success": "Pacto criado! Compartilhe o link de convite."
@@ -80,6 +91,16 @@
     "joinButton": "Apostar {stake} USDC e Entrar",
     "joining": "Entrando…",
     "success": "Você entrou no pacto!"
+  },
+  "JoinDemo": {
+    "demoBadge": "Demo — sem carteira necessária",
+    "demoDisclaimer": "Este é um pacto de demonstração. Nenhum USDC real será apostado. Use-o para explorar o fluxo de entrada antes de conectar sua carteira.",
+    "noWalletNeeded": "Sem carteira necessária — esta é uma experiência simulada.",
+    "successTitle": "Você entrou no pacto demo!",
+    "successDesc": "Em um pacto real, seu USDC estaria bloqueado em um contrato inteligente Soroban na Stellar agora.",
+    "viewPact": "Ver Painel do Pacto",
+    "createOwn": "Criar o Seu",
+    "demoNote": "Nenhum fundo foi movido. Isso foi uma demonstração."
   },
   "Dashboard": {
     "errorLoading": "Erro ao carregar o pacto",
@@ -125,9 +146,9 @@
     "backHome": "Voltar ao início"
   },
   "Pacts": {
-    "title": "Pactos",
-    "subtitle": "Explore e participe de pools de compromisso.",
-    "empty": "Nenhum pacto encontrado para esse filtro.",
+    "title": "Diretório",
+    "subtitle": "Descubra e participe de compromissos sociais ativos.",
+    "empty": "Nenhum pacto encontrado com este filtro.",
     "filters": {
       "all": "Todos",
       "open": "Abertos",
@@ -142,32 +163,32 @@
   },
   "Activity": {
     "title": "Atividade",
-    "subtitle": "Feed ao vivo de eventos do protocolo.",
+    "subtitle": "Interações recentes no protocolo PactChain.",
     "events": {
       "joined": "entrou em",
       "staking": "apostando",
-      "won": "ganhou",
+      "won": "venceu",
       "locked": "travou",
-      "refunded": "foi reembolsado de",
+      "refunded": "foi reembolsado por",
       "created": "criou",
       "voted": "votou em"
     }
   },
   "Profile": {
-    "wallet": "Carteira conectada",
+    "wallet": "Carteira",
     "disconnect": "Desconectar",
     "notConnected": {
-      "title": "Nenhuma carteira conectada",
-      "desc": "Conecte sua carteira Freighter para ver seu perfil."
+      "title": "Não Conectado",
+      "desc": "Por favor, conecte sua carteira para ver seu perfil."
     },
     "stats": {
-      "title": "Estatísticas",
+      "title": "Suas Estatísticas",
       "locked": "Bloqueado",
       "earned": "Ganho",
-      "winRate": "Taxa de vitória"
+      "winRate": "Taxa de Vitória"
     },
     "history": {
-      "title": "Meus Pactos"
+      "title": "Seus Pactos"
     },
     "settings": {
       "title": "Configurações",

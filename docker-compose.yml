@@ -1,0 +1,39 @@
+services:
+  backend:
+    build:
+      context: ./backend
+    ports:
+      - "8080:8080"
+    environment:
+      PORT: 8080
+      FRONTEND_URL: http://localhost:3000
+      DATABASE_URL: jdbc:h2:file:/data/pactchain;AUTO_SERVER=TRUE
+      DB_DRIVER: org.h2.Driver
+      DB_USER: pactchain
+      DB_PASS: pactchain
+      SENTRY_DSN: ${SENTRY_DSN:-}
+    volumes:
+      - pactchain_data:/data
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        NEXT_PUBLIC_API_URL: http://backend:8080
+        NEXT_PUBLIC_STELLAR_RPC_URL: https://soroban-testnet.stellar.org
+        NEXT_PUBLIC_CONTRACT_ID: ${CONTRACT_ID:-}
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: production
+    depends_on:
+      backend:
+        condition: service_healthy
+
+volumes:
+  pactchain_data:

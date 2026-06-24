@@ -6,3 +6,5 @@ target/
 data/
 *.local
 .DS_Store
+frontend/pnpm-lock.yaml
+frontend/pnpm-workspace.yaml

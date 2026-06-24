@@ -123,5 +123,61 @@
     "npsQuestion": "Qual a probabilidade de você usar o PactChain novamente? (1–10)",
     "npsThanks": "Obrigado pelo feedback! Nota: {score}/10",
     "backHome": "Voltar ao início"
+  },
+  "Pacts": {
+    "title": "Pactos",
+    "subtitle": "Explore e participe de pools de compromisso.",
+    "empty": "Nenhum pacto encontrado para esse filtro.",
+    "filters": {
+      "all": "Todos",
+      "open": "Abertos",
+      "active": "Ativos",
+      "resolved": "Resolvidos"
+    },
+    "card": {
+      "stake": "Aposta",
+      "pool": "Fundo",
+      "mode": "Modo"
+    }
+  },
+  "Activity": {
+    "title": "Atividade",
+    "subtitle": "Feed ao vivo de eventos do protocolo.",
+    "events": {
+      "joined": "entrou em",
+      "staking": "apostando",
+      "won": "ganhou",
+      "locked": "travou",
+      "refunded": "foi reembolsado de",
+      "created": "criou",
+      "voted": "votou em"
+    }
+  },
+  "Profile": {
+    "wallet": "Carteira conectada",
+    "disconnect": "Desconectar",
+    "notConnected": {
+      "title": "Nenhuma carteira conectada",
+      "desc": "Conecte sua carteira Freighter para ver seu perfil."
+    },
+    "stats": {
+      "title": "Estatísticas",
+      "locked": "Bloqueado",
+      "earned": "Ganho",
+      "winRate": "Taxa de vitória"
+    },
+    "history": {
+      "title": "Meus Pactos"
+    },
+    "settings": {
+      "title": "Configurações",
+      "language": "Idioma",
+      "theme": "Tema"
+    }
+  },
+  "NotFound": {
+    "title": "404 - Página não encontrada",
+    "description": "Ops! A página que você está procurando não existe ou foi movida.",
+    "button": "Voltar ao Início"
   }
 }

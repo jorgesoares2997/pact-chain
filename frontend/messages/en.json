@@ -123,5 +123,61 @@
     "npsQuestion": "How likely are you to use PactChain again? (1–10)",
     "npsThanks": "Thanks for the feedback! Score: {score}/10",
     "backHome": "Back to home"
+  },
+  "Pacts": {
+    "title": "Pacts",
+    "subtitle": "Browse and join open commitment pools.",
+    "empty": "No pacts found for this filter.",
+    "filters": {
+      "all": "All",
+      "open": "Open",
+      "active": "Active",
+      "resolved": "Resolved"
+    },
+    "card": {
+      "stake": "Stake",
+      "pool": "Pool",
+      "mode": "Mode"
+    }
+  },
+  "Activity": {
+    "title": "Activity",
+    "subtitle": "Live feed of protocol events.",
+    "events": {
+      "joined": "joined",
+      "staking": "staking",
+      "won": "won",
+      "locked": "locked",
+      "refunded": "was refunded from",
+      "created": "created",
+      "voted": "voted in"
+    }
+  },
+  "Profile": {
+    "wallet": "Connected wallet",
+    "disconnect": "Disconnect",
+    "notConnected": {
+      "title": "No wallet connected",
+      "desc": "Connect your Freighter wallet to view your profile."
+    },
+    "stats": {
+      "title": "Stats",
+      "locked": "Locked",
+      "earned": "Earned",
+      "winRate": "Win rate"
+    },
+    "history": {
+      "title": "My Pacts"
+    },
+    "settings": {
+      "title": "Settings",
+      "language": "Language",
+      "theme": "Theme"
+    }
+  },
+  "NotFound": {
+    "title": "404 - Page Not Found",
+    "description": "Oops! The page you are looking for doesn't exist or has been moved.",
+    "button": "Return Home"
   }
 }

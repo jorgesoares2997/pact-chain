@@ -106,15 +106,21 @@ export default function PactDashboard() {
       )}
 
       {pact.status === "ACTIVE" && address && (
-        <Button asChild size="lg" className="w-full mb-4">
-          <Link href={`/pact/${id}/vote`}>{t("castVote")}</Link>
-        </Button>
+        <Link 
+          href={`/pact/${id}/vote`} 
+          className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-11 px-8 w-full mb-4"
+        >
+          {t("castVote")}
+        </Link>
       )}
 
       {pact.status === "RESOLVED" && (
-        <Button asChild size="lg" className="w-full mb-4">
-          <Link href={`/pact/${id}/result`}>{t("viewResults")}</Link>
-        </Button>
+        <Link 
+          href={`/pact/${id}/result`} 
+          className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-11 px-8 w-full mb-4"
+        >
+          {t("viewResults")}
+        </Link>
       )}
 
       {pact.status === "OPEN" && address === pact.creator && (

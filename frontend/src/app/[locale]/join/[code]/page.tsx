@@ -50,6 +50,7 @@ function JoinPactInner() {
   const stakeUsdc = (pact.stakeAmount / 1e7).toFixed(2);
 
   async function handleJoin() {
+    if (!pact) return;
     setJoining(true);
     try {
       await api.logInteraction(address!, "joined_pact", pact.id);

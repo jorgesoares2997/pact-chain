@@ -119,7 +119,7 @@ export default function ResultPage() {
         </Card>
       ) : (
         <div className="bg-green-500/10 border border-green-500/20 rounded-xl p-4 text-green-600 dark:text-green-400 font-medium text-sm mb-8 flex items-center justify-center gap-2">
-          {t("npsThanks", { score: nps })}
+          {t("npsThanks", { score: nps ?? 0 })}
         </div>
       )}
 

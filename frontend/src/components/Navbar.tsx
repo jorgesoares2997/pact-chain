@@ -14,7 +14,12 @@ export default function Navbar() {
   const { address, connecting, connect, disconnect } = useWallet();
   const [isDrawerOpen, setIsDrawerOpen] = React.useState(false);
   const { theme, setTheme } = useTheme();
-  
+  const [mounted, setMounted] = React.useState(false);
+
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
+
   // Basic i18n locale switcher logic
   const pathname = usePathname();
   const router = useRouter();
@@ -68,12 +73,26 @@ export default function Navbar() {
               </Button>
             )}
 
-            <button
-              className="hidden sm:flex p-2 text-muted-foreground hover:text-foreground"
-              onClick={() => setIsDrawerOpen(true)}
-            >
-              <Menu className="h-5 w-5" />
-            </button>
+            {/* Desktop Settings */}
+            <div className="hidden sm:flex items-center gap-1 ml-2 border-l pl-4 border-border">
+              <button
+                onClick={toggleLocale}
+                className="flex items-center gap-1 p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors"
+                title="Toggle Language"
+              >
+                <Globe className="h-4 w-4" />
+                <span className="text-xs font-bold uppercase">{currentLocale}</span>
+              </button>
+              
+              <button
+                onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+                className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors"
+                title="Toggle Theme"
+              >
+                <Sun className="h-4 w-4 hidden dark:block" />
+                <Moon className="h-4 w-4 block dark:hidden" />
+              </button>
+            </div>
           </div>
         </div>
       </header>
@@ -119,10 +138,10 @@ export default function Navbar() {
               className="flex items-center justify-between w-full p-3 rounded-lg border border-border hover:bg-muted transition-colors"
             >
               <div className="flex items-center gap-3">
-                {theme === "dark" ? <Moon className="h-5 w-5 text-muted-foreground" /> : <Sun className="h-5 w-5 text-muted-foreground" />}
+                {mounted && theme === "dark" ? <Moon className="h-5 w-5 text-muted-foreground" /> : <Sun className="h-5 w-5 text-muted-foreground" />}
                 <span className="font-medium">Theme</span>
               </div>
-              <span className="text-sm text-muted-foreground capitalize">{theme}</span>
+              <span className="text-sm text-muted-foreground capitalize">{mounted ? theme : ""}</span>
             </button>
           </div>
 

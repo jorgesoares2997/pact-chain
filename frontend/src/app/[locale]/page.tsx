@@ -1,11 +1,15 @@
 import { useTranslations } from "next-intl";
+import { getTranslations } from "next-intl/server";
+import { setRequestLocale } from "next-intl/server";
 import Link from "next/link";
 import { Button } from "@/components/ui/Button";
 import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/Card";
 import { ShieldCheck, Gavel, Zap } from "lucide-react";
 
-export default function Home() {
-  const t = useTranslations("Index");
+export default async function Home({ params }: { params: Promise<{ locale: string }> }) {
+  const { locale } = await params;
+  setRequestLocale(locale);
+  const t = await getTranslations("Index");
 
   return (
     <section className="max-w-4xl mx-auto px-4 py-12 sm:py-24">
@@ -18,12 +22,18 @@ export default function Home() {
         </p>
         
         <div className="mt-10 flex flex-col sm:flex-row gap-4 justify-center">
-          <Button size="lg" asChild className="w-full sm:w-auto font-semibold">
-            <Link href="/create">{t("createPact")}</Link>
-          </Button>
-          <Button size="lg" variant="outline" asChild className="w-full sm:w-auto font-semibold">
-            <Link href="/join/demo">{t("seeExample")}</Link>
-          </Button>
+          <Link 
+            href="/create"
+            className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-11 px-8 w-full sm:w-auto font-semibold"
+          >
+            {t("createPact")}
+          </Link>
+          <Link 
+            href="/join/demo"
+            className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-11 px-8 w-full sm:w-auto font-semibold"
+          >
+            {t("seeExample")}
+          </Link>
         </div>
       </div>
 

@@ -3,11 +3,16 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import Spinner from "@/components/Spinner";
 import { api } from "@/lib/api";
 import type { Pact } from "@/types/pact";
+import { Card, CardContent } from "@/components/ui/Card";
+import { Button } from "@/components/ui/Button";
+import { Trophy, RotateCcw, Copy, ArrowLeft } from "lucide-react";
 
 export default function ResultPage() {
+  const t = useTranslations("Result");
   const { id } = useParams<{ id: string }>();
   const [pact, setPact] = useState<Pact | null>(null);
   const [nps, setNps] = useState<number | null>(null);
@@ -20,12 +25,9 @@ export default function ResultPage() {
   function submitNps(score: number) {
     setNps(score);
     setNpsSent(true);
-    if (typeof window !== "undefined" && (window as any).plausible) {
-      (window as any).plausible("nps_submitted", { props: { score: String(score) } });
-    }
   }
 
-  if (!pact) return <div className="flex justify-center py-24"><Spinner size="lg" /></div>;
+  if (!pact) return <div className="flex justify-center items-center min-h-[50vh]"><Spinner size="lg" /></div>;
 
   const winner = pact.winner ?? "Unknown";
   const total = (pact.stakeAmount * pact.maxParticipants) / 1e7;
@@ -38,81 +40,92 @@ export default function ResultPage() {
   }
 
   return (
-    <main className="max-w-md mx-auto px-4 py-10 text-center">
+    <main className="max-w-md mx-auto px-4 py-8 sm:py-12 text-center">
       {pact.status === "REFUNDED" ? (
-        <>
-          <div className="text-5xl mb-4">↩️</div>
-          <h1 className="text-2xl font-bold text-white mb-2">Pact Refunded</h1>
-          <p className="text-slate-400 text-sm mb-8">
-            No unanimity was reached within 48 hours. All participants have been refunded.
+        <div className="flex flex-col items-center mb-8">
+          <div className="bg-muted p-4 rounded-full mb-6">
+            <RotateCcw className="h-10 w-10 text-muted-foreground" />
+          </div>
+          <h1 className="text-2xl font-bold tracking-tight text-foreground mb-2">{t("refundedTitle")}</h1>
+          <p className="text-muted-foreground text-sm max-w-sm">
+            {t("refundedDesc")}
           </p>
-        </>
+        </div>
       ) : (
         <>
-          <div className="text-5xl mb-4">🏆</div>
-          <h1 className="text-2xl font-bold text-white mb-2">Winner Announced!</h1>
-          <p className="text-slate-400 text-sm mb-6">{pact.title}</p>
-
-          <div className="relative overflow-hidden backdrop-blur-xl bg-white/5 border border-violet-500/50 rounded-2xl p-6 mb-6 text-left shadow-[0_0_40px_rgba(124,58,237,0.3)]">
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-full bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-violet-500/20 via-transparent to-transparent opacity-50 blur-2xl pointer-events-none"></div>
-            <div className="relative z-10">
-              <div className="text-xs text-slate-500 mb-1">Winner</div>
-              <div className="font-mono text-cyan-300 drop-shadow-[0_0_8px_rgba(6,182,212,0.5)] text-sm break-all mb-4">{winner}</div>
-              <div className="grid grid-cols-3 gap-3 text-center">
-              <div>
-                <div className="text-xs text-slate-500">Total pool</div>
-                <div className="text-white font-semibold text-sm">{total.toFixed(2)} USDC</div>
-              </div>
-              <div>
-                <div className="text-xs text-slate-500">Protocol fee</div>
-                <div className="text-slate-400 text-sm">{fee} USDC</div>
-              </div>
-              <div>
-                <div className="text-xs text-slate-500">Winner payout</div>
-                <div className="text-emerald-400 drop-shadow-[0_0_8px_rgba(16,185,129,0.5)] font-bold text-sm">{payout} USDC</div>
-              </div>
+          <div className="flex flex-col items-center mb-8">
+            <div className="bg-primary/10 p-4 rounded-full mb-6">
+              <Trophy className="h-10 w-10 text-primary" />
             </div>
-            </div>
+            <h1 className="text-2xl font-bold tracking-tight text-foreground mb-2">{t("winnerTitle")}</h1>
+            <p className="text-muted-foreground text-sm max-w-sm">{pact.title}</p>
           </div>
 
-          <button
+          <Card className="mb-8 border-primary/20 bg-primary/5 shadow-md">
+            <CardContent className="pt-6">
+              <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">{t("winnerLabel")}</div>
+              <div className="font-mono text-primary text-sm break-all mb-6 bg-background rounded-md border p-2">{winner}</div>
+              
+              <div className="grid grid-cols-3 gap-4 text-center divide-x divide-border">
+                <div className="px-2">
+                  <div className="text-xs font-medium text-muted-foreground mb-1 leading-tight">{t("totalPool")}</div>
+                  <div className="text-foreground font-semibold text-sm">{total.toFixed(2)}</div>
+                </div>
+                <div className="px-2">
+                  <div className="text-xs font-medium text-muted-foreground mb-1 leading-tight">{t("protocolFee")}</div>
+                  <div className="text-muted-foreground text-sm">{fee}</div>
+                </div>
+                <div className="px-2">
+                  <div className="text-xs font-medium text-muted-foreground mb-1 leading-tight">{t("winnerPayout")}</div>
+                  <div className="text-emerald-500 font-bold text-sm">{payout}</div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Button
             onClick={shareResult}
-            className="w-full backdrop-blur-sm border border-violet-500/50 text-violet-300 hover:bg-violet-500/20 hover:text-white font-bold py-2.5 rounded-xl transition-all hover:shadow-[0_0_20px_rgba(124,58,237,0.3)] text-sm mb-8"
+            variant="outline"
+            className="w-full mb-8 font-semibold"
           >
-            📋 Copy result card
-          </button>
+            <Copy className="mr-2 h-4 w-4" />
+            {t("copyCard")}
+          </Button>
         </>
       )}
 
       {!npsSent ? (
-        <div className="backdrop-blur-md bg-white/5 border border-white/10 rounded-2xl p-5 text-left mb-6 shadow-lg">
-          <p className="text-sm font-medium text-white mb-3">
-            How likely are you to use PactChain again? (1–10)
-          </p>
-          <div className="flex gap-1.5 flex-wrap">
-            {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => (
-              <button
-                key={n}
-                onClick={() => submitNps(n)}
-                className={`w-9 h-9 rounded-lg text-sm font-bold transition-all border ${
-                  nps === n
-                    ? "bg-gradient-to-br from-violet-600 to-cyan-500 border-transparent text-white shadow-[0_0_15px_rgba(124,58,237,0.4)]"
-                    : "border-white/20 bg-white/5 text-slate-300 hover:border-violet-500/50 hover:bg-white/10"
-                }`}
-              >
-                {n}
-              </button>
-            ))}
-          </div>
-        </div>
+        <Card className="mb-8 bg-muted/30 border-dashed">
+          <CardContent className="pt-6">
+            <p className="text-sm font-medium text-foreground mb-4">
+              {t("npsQuestion")}
+            </p>
+            <div className="flex gap-2 flex-wrap justify-center">
+              {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => (
+                <button
+                  key={n}
+                  onClick={() => submitNps(n)}
+                  className={`w-9 h-9 rounded-md text-sm font-bold transition-all border ${
+                    nps === n
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "border-border bg-card text-muted-foreground hover:border-primary/50 hover:bg-muted"
+                  }`}
+                >
+                  {n}
+                </button>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
       ) : (
-        <div className="bg-green-900/20 border border-green-700/40 rounded-2xl p-4 text-green-400 text-sm mb-6">
-          Thanks for the feedback! Score: {nps}/10
+        <div className="bg-green-500/10 border border-green-500/20 rounded-xl p-4 text-green-600 dark:text-green-400 font-medium text-sm mb-8 flex items-center justify-center gap-2">
+          {t("npsThanks", { score: nps })}
         </div>
       )}
 
-      <Link href="/" className="text-slate-500 hover:text-slate-300 text-sm transition-colors">
-        ← Back to home
+      <Link href="/" className="inline-flex items-center text-muted-foreground hover:text-foreground text-sm font-medium transition-colors">
+        <ArrowLeft className="h-4 w-4 mr-2" />
+        {t("backHome")}
       </Link>
     </main>
   );

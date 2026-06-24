@@ -1,0 +1,127 @@
+{
+  "Index": {
+    "title": "Make commitments that stick",
+    "description": "PactChain lets groups create binding social commitments backed by USDC on Stellar. Winners get paid automatically — no middleman.",
+    "createPact": "Create a Pact",
+    "seeExample": "See an example",
+    "features": {
+      "trustless": {
+        "title": "Trustless escrow",
+        "desc": "USDC locked in a Soroban smart contract on Stellar testnet."
+      },
+      "resolution": {
+        "title": "3 resolution modes",
+        "desc": "Majority vote, single judge, or full unanimity — your choice."
+      },
+      "payout": {
+        "title": "Auto-payout",
+        "desc": "Winner receives funds instantly. 2% fee funds the protocol treasury."
+      }
+    }
+  },
+  "Nav": {
+    "newPact": "New Pact",
+    "connectWallet": "Connect Wallet",
+    "connecting": "Connecting…",
+    "disconnect": "Disconnect",
+    "home": "Home",
+    "activity": "Activity",
+    "pacts": "Pacts",
+    "profile": "Profile"
+  },
+  "Create": {
+    "title": "Create a Pact",
+    "labels": {
+      "title": "Title",
+      "description": "Description",
+      "stake": "Stake per person (USDC)",
+      "maxParticipants": "Max participants",
+      "deadlineDate": "Deadline date",
+      "deadlineTime": "Deadline time",
+      "mode": "Resolution mode",
+      "judge": "Judge Stellar address"
+    },
+    "placeholders": {
+      "title": "Who will finish the 30-day challenge?",
+      "description": "What exactly are participants committing to?",
+      "judge": "G…"
+    },
+    "modes": {
+      "MAJORITY": {
+        "label": "Majority Vote",
+        "desc": "More than 50% of participants agree"
+      },
+      "JUDGE": {
+        "label": "Single Judge",
+        "desc": "Designated address decides the winner"
+      },
+      "UNANIMITY": {
+        "label": "Unanimity",
+        "desc": "All participants must agree (or get refunded)"
+      }
+    },
+    "errors": {
+      "titleRequired": "Title is required",
+      "deadlineRequired": "Deadline is required",
+      "judgeRequired": "Judge address is required",
+      "deadlineFuture": "Deadline must be in the future"
+    },
+    "submit": "Create Pact",
+    "submitting": "Creating…",
+    "success": "Pact created! Share the invite link."
+  },
+  "Join": {
+    "invalidLink": "Invalid invite link",
+    "stakeRequired": "Stake required",
+    "resolution": "Resolution",
+    "votingDeadline": "Voting deadline",
+    "maxParticipants": "Max participants",
+    "disclaimer": "By joining, you agree to stake {stake} USDC. Funds are held in a Soroban smart contract and released to the winner(s) after resolution.",
+    "joinButton": "Stake {stake} USDC & Join",
+    "joining": "Joining…",
+    "success": "You joined the pact!"
+  },
+  "Dashboard": {
+    "errorLoading": "Error loading pact",
+    "deadline": "Deadline",
+    "stake": "Stake",
+    "mode": "Mode",
+    "max": "Max",
+    "people": "people",
+    "shareLink": "Share invite link",
+    "copy": "Copy",
+    "copied": "Copied!",
+    "castVote": "Cast Your Vote",
+    "viewResults": "View Results",
+    "lockPact": "Lock Pact & Start Voting",
+    "locking": "Locking…",
+    "lockedSuccess": "Pact locked! Voting is now open.",
+    "status": {
+      "OPEN": "OPEN",
+      "ACTIVE": "ACTIVE",
+      "RESOLVED": "RESOLVED",
+      "REFUNDED": "REFUNDED"
+    }
+  },
+  "Vote": {
+    "title": "Cast Your Vote",
+    "description": "Select who you think won the commitment challenge. You cannot vote for yourself.",
+    "submitVote": "Submit Vote",
+    "submitting": "Submitting…",
+    "success": "Vote submitted!",
+    "errorSelect": "Select a candidate first"
+  },
+  "Result": {
+    "refundedTitle": "Pact Refunded",
+    "refundedDesc": "No unanimity was reached within 48 hours. All participants have been refunded.",
+    "winnerTitle": "Winner Announced!",
+    "winnerLabel": "Winner",
+    "totalPool": "Total pool",
+    "protocolFee": "Protocol fee",
+    "winnerPayout": "Winner payout",
+    "copyCard": "Copy result card",
+    "npsQuestion": "How likely are you to use PactChain again? (1–10)",
+    "npsThanks": "Thanks for the feedback! Score: {score}/10",
+    "backHome": "Back to home"
+  }
+}

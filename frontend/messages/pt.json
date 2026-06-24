@@ -1,0 +1,127 @@
+{
+  "Index": {
+    "title": "Faça compromissos que duram",
+    "description": "PactChain permite que grupos criem compromissos sociais vinculativos apoiados por USDC na Stellar. Os vencedores são pagos automaticamente — sem intermediários.",
+    "createPact": "Criar um Pacto",
+    "seeExample": "Ver um exemplo",
+    "features": {
+      "trustless": {
+        "title": "Escrow sem confiança",
+        "desc": "USDC bloqueado em um contrato inteligente Soroban na testnet Stellar."
+      },
+      "resolution": {
+        "title": "3 modos de resolução",
+        "desc": "Votação por maioria, juiz único ou unanimidade total — você escolhe."
+      },
+      "payout": {
+        "title": "Pagamento automático",
+        "desc": "O vencedor recebe os fundos instantaneamente. Taxa de 2% financia a tesouraria do protocolo."
+      }
+    }
+  },
+  "Nav": {
+    "newPact": "Novo Pacto",
+    "connectWallet": "Conectar Carteira",
+    "connecting": "Conectando…",
+    "disconnect": "Desconectar",
+    "home": "Início",
+    "activity": "Atividade",
+    "pacts": "Pactos",
+    "profile": "Perfil"
+  },
+  "Create": {
+    "title": "Criar um Pacto",
+    "labels": {
+      "title": "Título",
+      "description": "Descrição",
+      "stake": "Aposta por pessoa (USDC)",
+      "maxParticipants": "Máximo de participantes",
+      "deadlineDate": "Data limite",
+      "deadlineTime": "Hora limite",
+      "mode": "Modo de resolução",
+      "judge": "Endereço Stellar do Juiz"
+    },
+    "placeholders": {
+      "title": "Quem vai terminar o desafio de 30 dias?",
+      "description": "A que exatamente os participantes estão se comprometendo?",
+      "judge": "G…"
+    },
+    "modes": {
+      "MAJORITY": {
+        "label": "Votação por Maioria",
+        "desc": "Mais de 50% dos participantes concordam"
+      },
+      "JUDGE": {
+        "label": "Juiz Único",
+        "desc": "Um endereço designado decide o vencedor"
+      },
+      "UNANIMITY": {
+        "label": "Unanimidade",
+        "desc": "Todos os participantes devem concordar (ou são reembolsados)"
+      }
+    },
+    "errors": {
+      "titleRequired": "Título é obrigatório",
+      "deadlineRequired": "Data limite é obrigatória",
+      "judgeRequired": "Endereço do juiz é obrigatório",
+      "deadlineFuture": "O prazo deve ser no futuro"
+    },
+    "submit": "Criar Pacto",
+    "submitting": "Criando…",
+    "success": "Pacto criado! Compartilhe o link de convite."
+  },
+  "Join": {
+    "invalidLink": "Link de convite inválido",
+    "stakeRequired": "Aposta necessária",
+    "resolution": "Resolução",
+    "votingDeadline": "Prazo de votação",
+    "maxParticipants": "Máx. de participantes",
+    "disclaimer": "Ao entrar, você concorda em apostar {stake} USDC. Os fundos são mantidos em um contrato inteligente Soroban e liberados após a resolução.",
+    "joinButton": "Apostar {stake} USDC e Entrar",
+    "joining": "Entrando…",
+    "success": "Você entrou no pacto!"
+  },
+  "Dashboard": {
+    "errorLoading": "Erro ao carregar o pacto",
+    "deadline": "Prazo",
+    "stake": "Aposta",
+    "mode": "Modo",
+    "max": "Máx",
+    "people": "pessoas",
+    "shareLink": "Compartilhar convite",
+    "copy": "Copiar",
+    "copied": "Copiado!",
+    "castVote": "Dê o seu voto",
+    "viewResults": "Ver Resultados",
+    "lockPact": "Travar Pacto e Iniciar Votação",
+    "locking": "Travando…",
+    "lockedSuccess": "Pacto travado! A votação está aberta.",
+    "status": {
+      "OPEN": "ABERTO",
+      "ACTIVE": "ATIVO",
+      "RESOLVED": "RESOLVIDO",
+      "REFUNDED": "REEMBOLSADO"
+    }
+  },
+  "Vote": {
+    "title": "Dê o seu voto",
+    "description": "Selecione quem você acha que venceu o desafio. Você não pode votar em si mesmo.",
+    "submitVote": "Enviar Voto",
+    "submitting": "Enviando…",
+    "success": "Voto enviado!",
+    "errorSelect": "Selecione um candidato primeiro"
+  },
+  "Result": {
+    "refundedTitle": "Pacto Reembolsado",
+    "refundedDesc": "Nenhuma unanimidade foi alcançada em 48 horas. Todos foram reembolsados.",
+    "winnerTitle": "Vencedor Anunciado!",
+    "winnerLabel": "Vencedor",
+    "totalPool": "Fundo total",
+    "protocolFee": "Taxa do protocolo",
+    "winnerPayout": "Pagamento do vencedor",
+    "copyCard": "Copiar resultado",
+    "npsQuestion": "Qual a probabilidade de você usar o PactChain novamente? (1–10)",
+    "npsThanks": "Obrigado pelo feedback! Nota: {score}/10",
+    "backHome": "Voltar ao início"
+  }
+}

@@ -10,8 +10,6 @@ services:
     envVars:
       - key: PORT
         value: 8080
-      - key: DB_DRIVER
-        value: org.postgresql.Driver
       - key: DB_USER
         sync: false
       - key: DB_PASS

@@ -10,7 +10,7 @@ import { useWallet } from "@/context/WalletContext";
 import { api } from "@/lib/api";
 import type { Pact } from "@/types/pact";
 import { Button } from "@/components/ui/Button";
-import { Check } from "lucide-react";
+import { Check, CheckCheck } from "lucide-react";
 
 export default function VotePage() {
   return (
@@ -27,6 +27,7 @@ function VoteInner() {
   const { address } = useWallet();
 
   const [pact, setPact] = useState<Pact | null>(null);
+  const [alreadyVoted, setAlreadyVoted] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -34,11 +35,18 @@ function VoteInner() {
     api.getPact(id).then(setPact).catch(console.error);
   }, [id]);
 
+  useEffect(() => {
+    if (address) {
+      api.hasVoted(id, address).then(setAlreadyVoted);
+    }
+  }, [id, address]);
+
   async function submitVote() {
-    if (!selected) return toast.error(t("errorSelect"));
+    if (!selected || alreadyVoted) return;
     setSubmitting(true);
     try {
       await api.logInteraction(address!, "voted", id, pact?.title, { vote: selected });
+      setAlreadyVoted(true);
       toast.success(t("success"));
       router.push(`/pact/${id}`);
     } catch (e) {
@@ -53,6 +61,19 @@ function VoteInner() {
   const options = pact.voteOptions
     ? pact.voteOptions.split(",").map((o) => o.trim()).filter(Boolean)
     : ["Yes", "No"];
+
+  if (alreadyVoted) {
+    return (
+      <main className="max-w-md mx-auto px-4 py-8 sm:py-12 flex flex-col items-center gap-6 text-center">
+        <div className="bg-primary/10 rounded-full p-5">
+          <CheckCheck className="h-10 w-10 text-primary" />
+        </div>
+        <h1 className="text-2xl font-bold tracking-tight text-foreground">Already voted</h1>
+        <p className="text-muted-foreground text-sm">You already cast your vote for this pact. Each wallet can only vote once.</p>
+        <Button variant="outline" onClick={() => router.push(`/pact/${id}`)}>Back to pact</Button>
+      </main>
+    );
+  }
 
   return (
     <main className="max-w-md mx-auto px-4 py-8 sm:py-12">

@@ -9,10 +9,10 @@ import Spinner from "@/components/Spinner";
 import Countdown from "@/components/Countdown";
 import { api } from "@/lib/api";
 import { useWallet } from "@/context/WalletContext";
-import type { Pact } from "@/types/pact";
+import type { Pact, Interaction } from "@/types/pact";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent } from "@/components/ui/Card";
-import { Copy, AlertCircle, CheckCircle2, MessageCircle, Send, X as XIcon } from "lucide-react";
+import { Copy, AlertCircle, CheckCircle2, MessageCircle, Send, X as XIcon, Trophy, CheckCheck } from "lucide-react";
 
 export default function PactDashboard() {
   const t = useTranslations("Dashboard");
@@ -21,6 +21,8 @@ export default function PactDashboard() {
   const { address } = useWallet();
 
   const [pact, setPact] = useState<Pact | null>(null);
+  const [votes, setVotes] = useState<Interaction[]>([]);
+  const [alreadyVoted, setAlreadyVoted] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
@@ -28,7 +30,14 @@ export default function PactDashboard() {
 
   useEffect(() => {
     api.getPact(id).then(setPact).catch((e: Error) => setError(e.message));
+    api.getPactVotes(id).then((all) => setVotes(all.filter((i) => i.action === "voted")));
   }, [id]);
+
+  useEffect(() => {
+    if (address) {
+      api.hasVoted(id, address).then(setAlreadyVoted);
+    }
+  }, [id, address]);
 
   if (error)
     return (
@@ -42,6 +51,9 @@ export default function PactDashboard() {
   if (!pact) return <div className="flex justify-center items-center min-h-[50vh]"><Spinner size="lg" /></div>;
 
   const stakeUsdc = (pact.stakeAmount / 1e7).toFixed(2);
+  const nowSec = Math.floor(Date.now() / 1000);
+  const deadlinePassed = nowSec > pact.deadline;
+  const isWinner = pact.status === "RESOLVED" && !!address && pact.winner === address;
 
   const origin = typeof window !== "undefined" ? window.location.origin : "";
   const inviteUrl = inviteCode ? `${origin}/join/${inviteCode}` : null;
@@ -84,7 +96,7 @@ export default function PactDashboard() {
             {t(`status.${pact.status}`)}
           </span>
         </div>
-        {pact.status === "ACTIVE" && (
+        {!deadlinePassed && (pact.status === "ACTIVE" || pact.status === "OPEN") && (
           <div className="text-right shrink-0 bg-muted/50 p-3 rounded-lg border border-border">
             <div className="text-xs font-medium text-muted-foreground mb-1 uppercase tracking-wider">{t("deadline")}</div>
             <Countdown deadline={pact.deadline} />
@@ -103,15 +115,92 @@ export default function PactDashboard() {
         <Stat label={t("max")} value={`${pact.maxParticipants} ${t("people")}`} />
       </div>
 
+      {/* Claim reward — winner only */}
+      {isWinner && (
+        <div className="mb-8 flex flex-col items-center gap-3 rounded-2xl border border-primary/30 bg-primary/5 p-6 text-center">
+          <Trophy className="h-10 w-10 text-primary" />
+          <p className="text-base font-semibold text-foreground">You won this pact!</p>
+          <p className="text-xs text-muted-foreground mb-2">Your stake reward is ready to claim on-chain.</p>
+          <Button size="lg" className="w-full">
+            Claim {stakeUsdc} USDC
+          </Button>
+        </div>
+      )}
+
+      {/* Vote action */}
+      {pact.status === "ACTIVE" && address && !deadlinePassed && (
+        alreadyVoted ? (
+          <div className="mb-6 flex items-center gap-2 rounded-xl border border-primary/30 bg-primary/5 px-4 py-3 text-sm text-muted-foreground">
+            <CheckCheck className="h-4 w-4 text-primary shrink-0" />
+            Your vote has been recorded.
+          </div>
+        ) : (
+          <Link
+            href={`/pact/${id}/vote`}
+            className="mb-6 inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 bg-primary text-primary-foreground hover:bg-primary/90 h-11 px-8 w-full"
+          >
+            {t("castVote")}
+          </Link>
+        )
+      )}
+
+      {pact.status === "RESOLVED" && (
+        <Link
+          href={`/pact/${id}/result`}
+          className="mb-6 inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 bg-primary text-primary-foreground hover:bg-primary/90 h-11 px-8 w-full"
+        >
+          {t("viewResults")}
+        </Link>
+      )}
+
+      {pact.status === "OPEN" && address === pact.creator && (
+        <LockButton
+          pactId={id}
+          onLocked={() => setPact((p) => p && { ...p, status: "ACTIVE" })}
+          t={t}
+        />
+      )}
+
+      {/* Votes cast */}
+      {votes.length > 0 && (
+        <div className="mb-8">
+          <h2 className="text-sm font-semibold text-foreground mb-3 uppercase tracking-wider">
+            Votes ({votes.length})
+          </h2>
+          <div className="flex flex-col gap-2">
+            {votes.map((v) => {
+              const voteValue = v.meta
+                ? (() => { try { return (JSON.parse(v.meta) as { vote?: string }).vote ?? null; } catch { return null; } })()
+                : null;
+              const isMe = !!address && v.wallet === address;
+              return (
+                <div
+                  key={v.id}
+                  className={`flex items-center justify-between rounded-xl border px-4 py-3 text-sm ${isMe ? "border-primary/40 bg-primary/5" : "border-border bg-card"}`}
+                >
+                  <span className="font-mono text-xs text-muted-foreground truncate max-w-[160px]">
+                    {isMe ? "You" : `${v.wallet.slice(0, 6)}…${v.wallet.slice(-4)}`}
+                  </span>
+                  {voteValue && (
+                    <span className="ml-2 shrink-0 rounded-full bg-primary/10 border border-primary/20 px-3 py-0.5 text-xs font-semibold text-primary">
+                      {voteValue}
+                    </span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Share section */}
-      <Card className="mb-8 border-dashed bg-muted/30">
+      <Card className="border-dashed bg-muted/30">
         <CardContent className="pt-5 pb-5">
           <div className="text-sm font-semibold text-foreground mb-1">{t("shareTitle")}</div>
           <p className="text-xs text-muted-foreground mb-4">
             {inviteUrl ? t("shareSubtitleInvite") : t("shareSubtitle")}
           </p>
 
-          {/* Link row */}
           <div className="flex items-center gap-2 mb-4">
             <code className="text-xs bg-background border border-border rounded-md px-3 py-2 flex-1 truncate font-mono text-primary">
               {shareUrl}
@@ -124,7 +213,6 @@ export default function PactDashboard() {
             </Button>
           </div>
 
-          {/* Share buttons */}
           <div className="grid grid-cols-3 gap-2">
             <ShareButton
               onClick={shareWhatsApp}
@@ -147,33 +235,6 @@ export default function PactDashboard() {
           </div>
         </CardContent>
       </Card>
-
-      {/* Actions */}
-      {pact.status === "ACTIVE" && address && (
-        <Link
-          href={`/pact/${id}/vote`}
-          className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-11 px-8 w-full mb-4"
-        >
-          {t("castVote")}
-        </Link>
-      )}
-
-      {pact.status === "RESOLVED" && (
-        <Link
-          href={`/pact/${id}/result`}
-          className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-11 px-8 w-full mb-4"
-        >
-          {t("viewResults")}
-        </Link>
-      )}
-
-      {pact.status === "OPEN" && address === pact.creator && (
-        <LockButton
-          pactId={id}
-          onLocked={() => setPact((p) => p && { ...p, status: "ACTIVE" })}
-          t={t}
-        />
-      )}
     </main>
   );
 }
@@ -218,7 +279,7 @@ function LockButton({ pactId, onLocked, t }: { pactId: string; onLocked: () => v
   }
 
   return (
-    <Button onClick={lockPact} disabled={loading} variant="default" size="lg" className="w-full mt-4">
+    <Button onClick={lockPact} disabled={loading} variant="default" size="lg" className="w-full mb-6">
       {loading && <Spinner size="sm" />}
       {loading ? t("locking") : t("lockPact")}
     </Button>

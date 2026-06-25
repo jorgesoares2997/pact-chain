@@ -221,10 +221,10 @@ function CreatePactForm() {
   );
 }
 
-type DeadlinePreset = "1d" | "1w" | "1mo" | "custom";
+type DeadlinePreset = "5m" | "1h" | "4h" | "1d" | "1w" | "custom";
 
-function addDays(days: number): { date: string; time: string } {
-  const d = new Date(Date.now() + days * 86_400_000);
+function addMinutes(minutes: number): { date: string; time: string } {
+  const d = new Date(Date.now() + minutes * 60_000);
   const date = d.toISOString().slice(0, 10);
   const time = d.toTimeString().slice(0, 5);
   return { date, time };
@@ -252,14 +252,17 @@ function DeadlineField({
 
   function applyPreset(p: DeadlinePreset) {
     setPreset(p);
-    if (p === "1d") {
-      const { date, time } = addDays(1);
-      setForm((f) => ({ ...f, deadlineDate: date, deadlineTime: time }));
-    } else if (p === "1w") {
-      const { date, time } = addDays(7);
-      setForm((f) => ({ ...f, deadlineDate: date, deadlineTime: time }));
-    } else if (p === "1mo") {
-      const { date, time } = addDays(30);
+    const minutesMap: Record<DeadlinePreset, number | null> = {
+      "5m": 5,
+      "1h": 60,
+      "4h": 240,
+      "1d": 1440,
+      "1w": 10080,
+      "custom": null,
+    };
+    const mins = minutesMap[p];
+    if (mins !== null) {
+      const { date, time } = addMinutes(mins);
       setForm((f) => ({ ...f, deadlineDate: date, deadlineTime: time }));
     } else {
       setForm((f) => ({ ...f, deadlineDate: "", deadlineTime: "23:59" }));
@@ -267,9 +270,11 @@ function DeadlineField({
   }
 
   const presets: { key: DeadlinePreset; label: string }[] = [
+    { key: "5m", label: "5 min" },
+    { key: "1h", label: "1 hour" },
+    { key: "4h", label: "4 hours" },
     { key: "1d", label: t("deadline.presets.1d") },
     { key: "1w", label: t("deadline.presets.1w") },
-    { key: "1mo", label: t("deadline.presets.1mo") },
     { key: "custom", label: t("deadline.presets.custom") },
   ];
 
@@ -280,7 +285,7 @@ function DeadlineField({
       </label>
 
       {/* Preset pills */}
-      <div className="grid grid-cols-4 gap-2">
+      <div className="grid grid-cols-3 gap-2">
         {presets.map((p) => (
           <button
             key={p.key}

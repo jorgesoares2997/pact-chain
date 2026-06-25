@@ -46,6 +46,13 @@ export const api = {
   getActivity: (limit = 30) =>
     request<Interaction[]>(`/api/interactions?limit=${limit}`),
 
+  getPactVotes: (pactId: string) =>
+    request<Interaction[]>(`/api/interactions?pactId=${pactId}&limit=100`),
+
+  hasVoted: (pactId: string, wallet: string) =>
+    request<Interaction[]>(`/api/interactions?pactId=${pactId}&wallet=${wallet}&limit=10`)
+      .then((list) => list.some((i) => i.action === "voted")),
+
   logInteraction: (
     wallet: string,
     action: string,

@@ -188,15 +188,12 @@ function CreatePactForm() {
         </Field>
 
         {form.mode === "JUDGE" && (
-          <Field label={t("labels.judge")}>
-            <Input
-              className="font-mono"
-              placeholder={t("placeholders.judge")}
-              value={form.judge}
-              onChange={set("judge")}
-              required
-            />
-          </Field>
+          <JudgeField
+            judge={form.judge}
+            setJudge={(v) => setForm((f) => ({ ...f, judge: v }))}
+            creatorAddress={address!}
+            t={t}
+          />
         )}
 
         <VoteOptionsField
@@ -338,6 +335,54 @@ function DeadlineField({
         <p className="text-xs text-muted-foreground">
           {t("deadline.hint")}
         </p>
+      )}
+    </div>
+  );
+}
+
+function JudgeField({
+  judge,
+  setJudge,
+  creatorAddress,
+  t,
+}: {
+  judge: string;
+  setJudge: (v: string) => void;
+  creatorAddress: string;
+  t: ReturnType<typeof useTranslations<"Create">>;
+}) {
+  const [isMe, setIsMe] = React.useState(false);
+
+  function toggleIsMe(checked: boolean) {
+    setIsMe(checked);
+    setJudge(checked ? creatorAddress : "");
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      <label className="text-sm font-medium leading-none text-foreground">{t("labels.judge")}</label>
+
+      <label className="flex items-center gap-3 cursor-pointer select-none rounded-lg border border-border bg-card px-4 py-3 hover:bg-muted transition-colors">
+        <input
+          type="checkbox"
+          checked={isMe}
+          onChange={(e) => toggleIsMe(e.target.checked)}
+          className="h-4 w-4 rounded border-input text-primary focus:ring-primary bg-background"
+        />
+        <div className="flex flex-col">
+          <span className="text-sm font-medium text-foreground">It&apos;s me</span>
+          <span className="text-xs text-muted-foreground">I will judge this pact myself</span>
+        </div>
+      </label>
+
+      {!isMe && (
+        <Input
+          className="font-mono"
+          placeholder={t("placeholders.judge")}
+          value={judge}
+          onChange={(e) => setJudge(e.target.value)}
+          required
+        />
       )}
     </div>
   );

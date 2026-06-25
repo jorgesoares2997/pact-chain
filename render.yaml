@@ -1,10 +1,8 @@
 services:
   - type: web
     name: pactchain-backend
-    runtime: java
-    rootDir: backend
-    buildCommand: ./mvnw package -DskipTests -q
-    startCommand: java -jar target/*.jar
+    runtime: docker
+    dockerfilePath: ./Dockerfile
     plan: free
     healthCheckPath: /api/health
     envVars:

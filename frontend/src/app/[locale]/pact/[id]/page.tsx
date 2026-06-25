@@ -204,7 +204,14 @@ export default function PactDashboard() {
 
       {/* Lock pact */}
       {pact.status === "OPEN" && address === pact.creator && (
-        <LockButton pactId={id} contractId={pact.contractId} signTx={signTx} onLocked={refreshAll} t={t} />
+        <LockButton 
+          pactId={id} 
+          contractId={pact.contractId} 
+          signTx={signTx} 
+          onLocked={refreshAll} 
+          t={t} 
+          disabled={participants.length < 2}
+        />
       )}
 
       {/* Votes cast */}
@@ -450,12 +457,14 @@ function LockButton({
   signTx,
   onLocked,
   t,
+  disabled,
 }: {
   pactId: string;
   contractId: string;
   signTx: (xdr: string) => Promise<string>;
   onLocked: () => void;
   t: ReturnType<typeof useTranslations<"Dashboard">>;
+  disabled?: boolean;
 }) {
   const { address } = useWallet();
   const [loading, setLoading] = useState(false);
@@ -487,10 +496,17 @@ function LockButton({
   };
 
   return (
-    <Button onClick={handleLock} disabled={loading} variant="default" size="lg" className="w-full mb-6">
-      {loading && <Spinner size="sm" />}
-      {lockLabel()}
-    </Button>
+    <div className="mb-6 w-full">
+      <Button onClick={handleLock} disabled={loading || disabled} variant="default" size="lg" className="w-full">
+        {loading && <Spinner size="sm" />}
+        {lockLabel()}
+      </Button>
+      {disabled && (
+        <p className="text-xs text-muted-foreground mt-2 text-center">
+          You need at least 2 participants to lock the pact.
+        </p>
+      )}
+    </div>
   );
 }
 

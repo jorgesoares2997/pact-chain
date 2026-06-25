@@ -8,3 +8,4 @@ data/
 .DS_Store
 frontend/pnpm-lock.yaml
 frontend/pnpm-workspace.yaml
+.vercel

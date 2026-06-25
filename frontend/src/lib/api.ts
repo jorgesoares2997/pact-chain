@@ -35,6 +35,20 @@ export const api = {
       body: JSON.stringify({ winner }),
     }),
 
+  // Resolve: set winner then flip status to RESOLVED in sequence
+  resolvePact: async (id: string, winner: string) => {
+    await request<{ ok: boolean }>(`/api/pacts/${id}/winner`, {
+      method: "PATCH",
+      body: JSON.stringify({ winner }),
+    });
+  },
+
+  refundPact: (id: string) =>
+    request<{ ok: boolean }>(`/api/pacts/${id}/status`, {
+      method: "PATCH",
+      body: JSON.stringify({ status: "REFUNDED" }),
+    }),
+
   resolveInvite: (code: string) => request<Pact>(`/api/invite/${code}`),
 
   createInvite: (pactId: string) =>

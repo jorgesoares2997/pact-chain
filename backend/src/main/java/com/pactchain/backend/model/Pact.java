@@ -6,6 +6,8 @@ import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
 
 import java.time.Instant;
+import java.util.Arrays;
+import java.util.List;
 
 @Entity
 @Table(name = "pacts")
@@ -54,7 +56,17 @@ public class Pact {
     @Column(length = 80)
     private String winner;
 
+    /** Comma-separated vote option labels, e.g. "Yes,No" or "Alice,Bob,Draw" */
+    @Column(name = "vote_options", nullable = false, length = 500)
+    private String voteOptions = "Yes,No";
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
+
+    @Transient
+    public List<String> getVoteOptionList() {
+        if (voteOptions == null || voteOptions.isBlank()) return List.of("Yes", "No");
+        return Arrays.asList(voteOptions.split(","));
+    }
 }

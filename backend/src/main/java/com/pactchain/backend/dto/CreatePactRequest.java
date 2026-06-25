@@ -4,6 +4,8 @@ import com.pactchain.backend.model.Pact;
 import jakarta.validation.constraints.*;
 import lombok.Data;
 
+import java.util.List;
+
 @Data
 public class CreatePactRequest {
 
@@ -33,4 +35,7 @@ public class CreatePactRequest {
     private Pact.ResolutionMode resolutionMode;
 
     private String judge;
+
+    /** Vote option labels, e.g. ["Yes","No"]. Defaults to Yes/No if absent. */
+    private List<String> voteOptions;
 }

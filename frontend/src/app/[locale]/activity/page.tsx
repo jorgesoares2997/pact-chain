@@ -1,6 +1,8 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
+import Link from "next/link";
 import {
   UserPlus,
   Trophy,
@@ -9,90 +11,29 @@ import {
   PlusCircle,
   Vote,
 } from "lucide-react";
+import Spinner from "@/components/Spinner";
+import { api } from "@/lib/api";
+import type { Interaction, InteractionAction } from "@/types/pact";
 
 type EventType = "JOIN" | "WIN" | "LOCK" | "REFUND" | "CREATE" | "VOTE";
 
-interface ActivityEvent {
-  id: string;
-  type: EventType;
-  actor: string;
-  pactTitle: string;
-  pactId: string;
-  amount?: number;
-  timestamp: number;
-}
+const ACTION_MAP: Record<InteractionAction, EventType> = {
+  pact_created: "CREATE",
+  joined_pact: "JOIN",
+  pact_locked: "LOCK",
+  voted: "VOTE",
+  pact_won: "WIN",
+  pact_refunded: "REFUND",
+};
 
-const MOCK_EVENTS: ActivityEvent[] = [
-  {
-    id: "e1",
-    type: "WIN",
-    actor: "GBXYZ…4321",
-    pactTitle: "30-Day Running Challenge",
-    pactId: "1",
-    amount: 3_800_000_000,
-    timestamp: Date.now() - 2 * 60 * 1000,
-  },
-  {
-    id: "e2",
-    type: "VOTE",
-    actor: "GABC…9876",
-    pactTitle: "No Social Media for 2 Weeks",
-    pactId: "2",
-    timestamp: Date.now() - 18 * 60 * 1000,
-  },
-  {
-    id: "e3",
-    type: "JOIN",
-    actor: "GDEF…1111",
-    pactTitle: "Cold Shower Streak — 21 Days",
-    pactId: "4",
-    amount: 750_000_000,
-    timestamp: Date.now() - 45 * 60 * 1000,
-  },
-  {
-    id: "e4",
-    type: "LOCK",
-    actor: "GABC…9876",
-    pactTitle: "No Social Media for 2 Weeks",
-    pactId: "2",
-    timestamp: Date.now() - 2 * 3600 * 1000,
-  },
-  {
-    id: "e5",
-    type: "CREATE",
-    actor: "GHIJ…2222",
-    pactTitle: "Cold Shower Streak — 21 Days",
-    pactId: "4",
-    timestamp: Date.now() - 4 * 3600 * 1000,
-  },
-  {
-    id: "e6",
-    type: "JOIN",
-    actor: "GKLM…3333",
-    pactTitle: "Read 5 Books in 60 Days",
-    pactId: "5",
-    amount: 300_000_000,
-    timestamp: Date.now() - 6 * 3600 * 1000,
-  },
-  {
-    id: "e7",
-    type: "REFUND",
-    actor: "GNOP…7777",
-    pactTitle: "Daily Meditation — 21 Days",
-    pactId: "6",
-    amount: 500_000_000,
-    timestamp: Date.now() - 24 * 3600 * 1000,
-  },
-  {
-    id: "e8",
-    type: "WIN",
-    actor: "GQRS…8888",
-    pactTitle: "Learn Spanish — 100 Hours",
-    pactId: "3",
-    amount: 7_600_000_000,
-    timestamp: Date.now() - 26 * 3600 * 1000,
-  },
-];
+const EVENT_TO_I18N_KEY: Record<EventType, "joined" | "won" | "locked" | "refunded" | "created" | "voted"> = {
+  JOIN: "joined",
+  WIN: "won",
+  LOCK: "locked",
+  REFUND: "refunded",
+  CREATE: "created",
+  VOTE: "voted",
+};
 
 const EVENT_CONFIG: Record<
   EventType,
@@ -130,16 +71,32 @@ const EVENT_CONFIG: Record<
   },
 };
 
-function relativeTime(ts: number): string {
-  const delta = Math.floor((Date.now() - ts) / 1000);
+function relativeTime(ts: string): string {
+  const delta = Math.floor((Date.now() - new Date(ts).getTime()) / 1000);
   if (delta < 60) return `${delta}s ago`;
   if (delta < 3600) return `${Math.floor(delta / 60)}m ago`;
   if (delta < 86400) return `${Math.floor(delta / 3600)}h ago`;
   return `${Math.floor(delta / 86400)}d ago`;
 }
 
+function shortAddress(addr: string): string {
+  if (addr.length <= 12) return addr;
+  return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
+}
+
 export default function ActivityPage() {
   const t = useTranslations("Activity");
+  const [interactions, setInteractions] = useState<Interaction[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    api
+      .getActivity(50)
+      .then(setInteractions)
+      .catch((e: Error) => setError(e.message))
+      .finally(() => setLoading(false));
+  }, []);
 
   return (
     <main className="max-w-xl mx-auto px-4 py-8 sm:py-12">
@@ -150,122 +107,65 @@ export default function ActivityPage() {
         <p className="text-sm text-muted-foreground">{t("subtitle")}</p>
       </div>
 
-      <div className="relative">
-        {/* Timeline line */}
-        <div className="absolute left-[19px] top-0 bottom-0 w-px bg-border" />
+      {loading ? (
+        <div className="flex justify-center py-16">
+          <Spinner size="lg" />
+        </div>
+      ) : error ? (
+        <div className="text-center py-16 text-destructive text-sm">{error}</div>
+      ) : interactions.length === 0 ? (
+        <div className="text-center py-16 text-muted-foreground text-sm">
+          {t("empty")}
+        </div>
+      ) : (
+        <div className="relative">
+          <div className="absolute left-[19px] top-0 bottom-0 w-px bg-border" />
+          <div className="flex flex-col gap-0">
+            {interactions.map((item, idx) => {
+              const type: EventType = ACTION_MAP[item.action] ?? "CREATE";
+              const config = EVENT_CONFIG[type];
+              const isLast = idx === interactions.length - 1;
 
-        <div className="flex flex-col gap-0">
-          {MOCK_EVENTS.map((event, idx) => {
-            const config = EVENT_CONFIG[event.type];
-            const isLast = idx === MOCK_EVENTS.length - 1;
-
-            return (
-              <div
-                key={event.id}
-                className={`relative flex gap-4 ${isLast ? "" : "pb-6"}`}
-              >
-                {/* Icon dot */}
+              return (
                 <div
-                  className={`relative z-10 flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-full border bg-background ${config.color}`}
+                  key={item.id}
+                  className={`relative flex gap-4 ${isLast ? "" : "pb-6"}`}
                 >
-                  <span className={`${config.bgColor} rounded-full p-1.5`}>
-                    {config.icon}
-                  </span>
-                </div>
-
-                {/* Content */}
-                <div className="flex-1 pt-1.5 pb-1">
-                  <div className="flex items-baseline justify-between gap-2">
-                    <p className="text-sm text-foreground leading-snug">
-                      <EventDescription event={event} t={t} />
-                    </p>
-                    <span className="text-[11px] text-muted-foreground shrink-0 font-mono">
-                      {relativeTime(event.timestamp)}
+                  <div
+                    className={`relative z-10 flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-full border bg-background ${config.color}`}
+                  >
+                    <span className={`${config.bgColor} rounded-full p-1.5`}>
+                      {config.icon}
                     </span>
                   </div>
+
+                  <div className="flex-1 pt-1.5 pb-1">
+                    <div className="flex items-baseline justify-between gap-2">
+                      <p className="text-sm text-muted-foreground leading-snug">
+                        <span className="font-semibold text-foreground">
+                          {shortAddress(item.wallet)}
+                        </span>{" "}
+                        {t(`events.${EVENT_TO_I18N_KEY[type]}`)}{" "}
+                        {item.pactId ? (
+                          <Link
+                            href={`/pact/${item.pactId}`}
+                            className="font-medium text-foreground hover:underline"
+                          >
+                            &ldquo;{item.pactTitle ?? item.pactId}&rdquo;
+                          </Link>
+                        ) : null}
+                      </p>
+                      <span className="text-[11px] text-muted-foreground shrink-0 font-mono">
+                        {relativeTime(item.createdAt)}
+                      </span>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
-      </div>
+      )}
     </main>
   );
-}
-
-function EventDescription({
-  event,
-  t,
-}: {
-  event: ActivityEvent;
-  t: ReturnType<typeof useTranslations<"Activity">>;
-}) {
-  const usdc = event.amount
-    ? (event.amount / 1e7).toFixed(2)
-    : null;
-
-  const actor = (
-    <span className="font-semibold text-foreground">{event.actor}</span>
-  );
-  const pact = (
-    <span className="font-medium text-foreground">&ldquo;{event.pactTitle}&rdquo;</span>
-  );
-  const amount = usdc ? (
-    <span className="font-semibold text-foreground">{usdc} USDC</span>
-  ) : null;
-
-  switch (event.type) {
-    case "JOIN":
-      return (
-        <span className="text-muted-foreground">
-          {actor} {t("events.joined")} {pact}
-          {amount && (
-            <>
-              {" "}
-              {t("events.staking")} {amount}
-            </>
-          )}
-        </span>
-      );
-    case "WIN":
-      return (
-        <span className="text-muted-foreground">
-          {actor} {t("events.won")} {pact}
-          {amount && (
-            <>
-              {" "}— {amount}
-            </>
-          )}
-        </span>
-      );
-    case "LOCK":
-      return (
-        <span className="text-muted-foreground">
-          {actor} {t("events.locked")} {pact}
-        </span>
-      );
-    case "REFUND":
-      return (
-        <span className="text-muted-foreground">
-          {actor} {t("events.refunded")} {pact}
-          {amount && (
-            <>
-              {" "}— {amount}
-            </>
-          )}
-        </span>
-      );
-    case "CREATE":
-      return (
-        <span className="text-muted-foreground">
-          {actor} {t("events.created")} {pact}
-        </span>
-      );
-    case "VOTE":
-      return (
-        <span className="text-muted-foreground">
-          {actor} {t("events.voted")} {pact}
-        </span>
-      );
-  }
 }

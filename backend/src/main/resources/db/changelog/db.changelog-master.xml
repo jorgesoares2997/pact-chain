@@ -81,4 +81,18 @@
     </createIndex>
 
   </changeSet>
+
+  <changeSet id="002-vote-options-and-pact-title" author="pactchain">
+    <!-- vote options stored comma-separated, e.g. "Yes,No" or "Alice,Bob,Draw" -->
+    <addColumn tableName="pacts">
+      <column name="vote_options" type="VARCHAR(500)" defaultValue="Yes,No">
+        <constraints nullable="false"/>
+      </column>
+    </addColumn>
+    <!-- pact title snapshot on interaction row for activity feed display -->
+    <addColumn tableName="wallet_interactions">
+      <column name="pact_title" type="VARCHAR(120)"/>
+    </addColumn>
+  </changeSet>
+
 </databaseChangeLog>

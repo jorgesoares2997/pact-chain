@@ -41,12 +41,16 @@
       "deadlineTime": "Hora limite",
       "deadline": "Prazo",
       "mode": "Modo de resolução",
-      "judge": "Endereço Stellar do Juiz"
+      "judge": "Endereço Stellar do Juiz",
+      "voteOptions": "Opções de voto",
+      "voteOptionsHint": "Defina como os participantes votam no resultado.",
+      "addOption": "+ Adicionar"
     },
     "placeholders": {
       "title": "Quem vai terminar o desafio de 30 dias?",
       "description": "A que exatamente os participantes estão se comprometendo?",
-      "judge": "G…"
+      "judge": "G…",
+      "voteOption": "Opção personalizada…"
     },
     "modes": {
       "MAJORITY": {
@@ -90,7 +94,9 @@
     "disclaimer": "Ao entrar, você concorda em apostar {stake} USDC. Os fundos são mantidos em um contrato inteligente Soroban e liberados após a resolução.",
     "joinButton": "Apostar {stake} USDC e Entrar",
     "joining": "Entrando…",
-    "success": "Você entrou no pacto!"
+    "success": "Você entrou no pacto!",
+    "connectToJoin": "Conectar carteira para entrar",
+    "connectingWallet": "Conectando…"
   },
   "JoinDemo": {
     "demoBadge": "Demo — sem carteira necessária",
@@ -112,6 +118,7 @@
     "shareLink": "Compartilhar convite",
     "copy": "Copiar",
     "copied": "Copiado!",
+    "shareWhatsApp": "WhatsApp",
     "castVote": "Dê o seu voto",
     "viewResults": "Ver Resultados",
     "lockPact": "Travar Pacto e Iniciar Votação",
@@ -164,6 +171,7 @@
   "Activity": {
     "title": "Atividade",
     "subtitle": "Interações recentes no protocolo PactChain.",
+    "empty": "Nenhuma atividade ainda.",
     "events": {
       "joined": "entrou em",
       "staking": "apostando",

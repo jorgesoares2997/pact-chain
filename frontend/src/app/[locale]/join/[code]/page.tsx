@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import { useTranslations } from "next-intl";
-import ConnectWalletGate from "@/components/ConnectWalletGate";
 import Spinner from "@/components/Spinner";
 import { useWallet } from "@/context/WalletContext";
 import { api } from "@/lib/api";
@@ -14,18 +13,10 @@ import { Button } from "@/components/ui/Button";
 import { AlertCircle, FileSignature } from "lucide-react";
 
 export default function JoinPactPage() {
-  return (
-    <ConnectWalletGate>
-      <JoinPactInner />
-    </ConnectWalletGate>
-  );
-}
-
-function JoinPactInner() {
   const t = useTranslations("Join");
   const { code } = useParams<{ code: string }>();
   const router = useRouter();
-  const { address } = useWallet();
+  const { address, connect, connecting } = useWallet();
 
   const [pact, setPact] = useState<Pact | null>(null);
   const [fetchError, setFetchError] = useState<string | null>(null);
@@ -53,7 +44,7 @@ function JoinPactInner() {
     if (!pact) return;
     setJoining(true);
     try {
-      await api.logInteraction(address!, "joined_pact", pact.id);
+      await api.logInteraction(address!, "joined_pact", pact.id, pact.title);
       toast.success(t("success"));
       router.push(`/pact/${pact.id}`);
     } catch (e) {
@@ -73,20 +64,24 @@ function JoinPactInner() {
             </div>
             <CardTitle className="text-xl">{pact.title}</CardTitle>
           </div>
-          <CardDescription className="text-base">{pact.description}</CardDescription>
+          {pact.description && (
+            <CardDescription className="text-base">{pact.description}</CardDescription>
+          )}
         </CardHeader>
-        
+
         <CardContent className="pb-6">
           <dl className="grid grid-cols-2 gap-y-4 text-sm mb-6 border-y border-border py-4">
             <dt className="text-muted-foreground">{t("stakeRequired")}</dt>
             <dd className="text-foreground font-semibold text-right">{stakeUsdc} USDC</dd>
-            
+
             <dt className="text-muted-foreground">{t("resolution")}</dt>
             <dd className="text-foreground text-right">{pact.resolutionMode}</dd>
-            
+
             <dt className="text-muted-foreground">{t("votingDeadline")}</dt>
-            <dd className="text-foreground text-right">{new Date(pact.deadline * 1000).toLocaleString()}</dd>
-            
+            <dd className="text-foreground text-right">
+              {new Date(pact.deadline * 1000).toLocaleString()}
+            </dd>
+
             <dt className="text-muted-foreground">{t("maxParticipants")}</dt>
             <dd className="text-foreground text-right">{pact.maxParticipants}</dd>
           </dl>
@@ -97,15 +92,28 @@ function JoinPactInner() {
         </CardContent>
 
         <CardFooter>
-          <Button
-            onClick={handleJoin}
-            disabled={joining}
-            size="lg"
-            className="w-full"
-          >
-            {joining && <Spinner size="sm" />}
-            {joining ? t("joining") : t("joinButton", { stake: stakeUsdc })}
-          </Button>
+          {address ? (
+            <Button
+              onClick={handleJoin}
+              disabled={joining}
+              size="lg"
+              className="w-full"
+            >
+              {joining && <Spinner size="sm" />}
+              {joining ? t("joining") : t("joinButton", { stake: stakeUsdc })}
+            </Button>
+          ) : (
+            <Button
+              onClick={connect}
+              disabled={connecting}
+              size="lg"
+              variant="outline"
+              className="w-full"
+            >
+              {connecting && <Spinner size="sm" />}
+              {connecting ? t("connectingWallet") : t("connectToJoin")}
+            </Button>
+          )}
         </CardFooter>
       </Card>
     </main>

@@ -26,6 +26,9 @@ public class WalletInteraction {
     @Column(name = "pact_id", length = 20)
     private String pactId;
 
+    @Column(name = "pact_title", length = 120)
+    private String pactTitle;
+
     @Column(length = 2000)
     private String meta;
 

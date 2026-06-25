@@ -10,5 +10,6 @@ public class LogInteractionRequest {
     @NotBlank
     private String action;
     private String pactId;
+    private String pactTitle;
     private String meta;
 }

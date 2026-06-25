@@ -5,76 +5,9 @@ import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { Users, Lock, CheckCircle2, RefreshCcw } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/Card";
+import Spinner from "@/components/Spinner";
+import { api } from "@/lib/api";
 import type { Pact, PactStatus } from "@/types/pact";
-
-const MOCK_PACTS: Pact[] = [
-  {
-    id: "1",
-    contractId: "C001",
-    title: "30-Day Running Challenge",
-    description: "Run at least 5km every day for 30 days.",
-    creator: "GBXYZ",
-    stakeAmount: 500_000_000,
-    maxParticipants: 8,
-    deadline: Date.now() + 1_000_000_000,
-    resolutionMode: "MAJORITY",
-    status: "OPEN",
-    createdAt: new Date().toISOString(),
-  },
-  {
-    id: "2",
-    contractId: "C002",
-    title: "No Social Media for 2 Weeks",
-    description: "Delete all social apps and stay off for 14 days.",
-    creator: "GABC",
-    stakeAmount: 1_000_000_000,
-    maxParticipants: 5,
-    deadline: Date.now() + 500_000_000,
-    resolutionMode: "JUDGE",
-    status: "ACTIVE",
-    createdAt: new Date().toISOString(),
-  },
-  {
-    id: "3",
-    contractId: "C003",
-    title: "Learn Spanish — 100 Hours",
-    description: "Log 100 hours of Spanish study by the deadline.",
-    creator: "GDEF",
-    stakeAmount: 2_000_000_000,
-    maxParticipants: 4,
-    deadline: Date.now() - 100_000_000,
-    resolutionMode: "UNANIMITY",
-    status: "RESOLVED",
-    winner: "GDEF",
-    createdAt: new Date().toISOString(),
-  },
-  {
-    id: "4",
-    contractId: "C004",
-    title: "Cold Shower Streak — 21 Days",
-    description: "Cold shower every morning for 21 days straight.",
-    creator: "GHIJ",
-    stakeAmount: 750_000_000,
-    maxParticipants: 10,
-    deadline: Date.now() + 1_500_000_000,
-    resolutionMode: "MAJORITY",
-    status: "OPEN",
-    createdAt: new Date().toISOString(),
-  },
-  {
-    id: "5",
-    contractId: "C005",
-    title: "Read 5 Books in 60 Days",
-    description: "Finish and summarize five non-fiction books.",
-    creator: "GKLM",
-    stakeAmount: 300_000_000,
-    maxParticipants: 6,
-    deadline: Date.now() + 800_000_000,
-    resolutionMode: "MAJORITY",
-    status: "ACTIVE",
-    createdAt: new Date().toISOString(),
-  },
-];
 
 type FilterTab = "ALL" | PactStatus;
 
@@ -107,6 +40,19 @@ const STATUS_CONFIG: Record<
 export default function PactsPage() {
   const t = useTranslations("Pacts");
   const [activeFilter, setActiveFilter] = React.useState<FilterTab>("ALL");
+  const [pacts, setPacts] = React.useState<Pact[]>([]);
+  const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    setLoading(true);
+    const status = activeFilter === "ALL" ? undefined : activeFilter;
+    api
+      .listPacts(status)
+      .then(setPacts)
+      .catch((e: Error) => setError(e.message))
+      .finally(() => setLoading(false));
+  }, [activeFilter]);
 
   const tabs: { key: FilterTab; label: string }[] = [
     { key: "ALL", label: t("filters.all") },
@@ -114,11 +60,6 @@ export default function PactsPage() {
     { key: "ACTIVE", label: t("filters.active") },
     { key: "RESOLVED", label: t("filters.resolved") },
   ];
-
-  const filtered =
-    activeFilter === "ALL"
-      ? MOCK_PACTS
-      : MOCK_PACTS.filter((p) => p.status === activeFilter);
 
   return (
     <main className="max-w-2xl mx-auto px-4 py-8 sm:py-12">
@@ -129,7 +70,6 @@ export default function PactsPage() {
         <p className="text-sm text-muted-foreground">{t("subtitle")}</p>
       </div>
 
-      {/* Filter Pills */}
       <div className="flex gap-2 flex-wrap mb-6">
         {tabs.map((tab) => (
           <button
@@ -146,14 +86,19 @@ export default function PactsPage() {
         ))}
       </div>
 
-      {/* Pact Grid */}
-      {filtered.length === 0 ? (
+      {loading ? (
+        <div className="flex justify-center py-16">
+          <Spinner size="lg" />
+        </div>
+      ) : error ? (
+        <div className="text-center py-16 text-destructive text-sm">{error}</div>
+      ) : pacts.length === 0 ? (
         <div className="text-center py-16 text-muted-foreground text-sm">
           {t("empty")}
         </div>
       ) : (
         <div className="flex flex-col gap-3">
-          {filtered.map((pact) => (
+          {pacts.map((pact) => (
             <PactCard key={pact.id} pact={pact} t={t} />
           ))}
         </div>
@@ -184,22 +129,13 @@ function PactCard({ pact, t }: { pact: Pact; t: ReturnType<typeof useTranslation
           </div>
 
           <p className="text-xs text-muted-foreground line-clamp-1 mb-4">
-            {pact.description}
+            {pact.description || "—"}
           </p>
 
           <div className="grid grid-cols-3 gap-3 text-center">
-            <Metric
-              label={t("card.stake")}
-              value={`${stakeUsdc} USDC`}
-            />
-            <Metric
-              label={t("card.pool")}
-              value={`${totalPool} USDC`}
-            />
-            <Metric
-              label={t("card.mode")}
-              value={pact.resolutionMode}
-            />
+            <Metric label={t("card.stake")} value={`${stakeUsdc} USDC`} />
+            <Metric label={t("card.pool")} value={`${totalPool} USDC`} />
+            <Metric label={t("card.mode")} value={pact.resolutionMode} />
           </div>
         </CardContent>
       </Card>

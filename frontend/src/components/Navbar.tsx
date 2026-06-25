@@ -44,7 +44,7 @@ export default function Navbar() {
               <Menu className="h-5 w-5" />
             </button>
             <Link href="/" className="flex items-center gap-2 font-bold tracking-tight text-lg">
-              <Image src="/logo.png" alt="PactChain Logo" width={28} height={28} className="rounded-md" />
+              <Image src="/logo.png" alt="PactChain Logo" width={28} height={28} className="rounded-xl" />
               <span>PactChain</span>
             </Link>
           </div>

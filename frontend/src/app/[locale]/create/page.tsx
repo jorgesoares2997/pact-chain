@@ -9,6 +9,7 @@ import ConnectWalletGate from "@/components/ConnectWalletGate";
 import Spinner from "@/components/Spinner";
 import { useWallet } from "@/context/WalletContext";
 import { api } from "@/lib/api";
+import { deployAndInitializePact } from "@/lib/stellar";
 import type { ResolutionMode } from "@/types/pact";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
@@ -23,7 +24,7 @@ export default function CreatePactPage() {
 
 function CreatePactForm() {
   const t = useTranslations("Create");
-  const { address } = useWallet();
+  const { address, signTx } = useWallet();
   const router = useRouter();
   const [loading, setLoading] = useState(false);
 
@@ -38,6 +39,8 @@ function CreatePactForm() {
     judge: "",
   });
   const [skipDescription, setSkipDescription] = useState(false);
+  const [voteOptions, setVoteOptions] = useState<string[]>(["Yes", "No"]);
+  const [customOptionInput, setCustomOptionInput] = useState("");
 
   const set =
     (k: keyof typeof form) =>
@@ -59,8 +62,22 @@ function CreatePactForm() {
 
     setLoading(true);
     try {
+      const contractId = await deployAndInitializePact({
+        creatorAddress: address!,
+        title: form.title,
+        description: form.description,
+        stakeAmountStroops: BigInt(Math.round(parseFloat(form.stakeAmount) * 1e7)),
+        maxParticipants: parseInt(form.maxParticipants),
+        deadlineUnix,
+        resolutionMode: form.mode,
+        judge: form.judge || undefined,
+        usdcToken: process.env.NEXT_PUBLIC_USDC_TOKEN_ID ?? "",
+        treasury: process.env.NEXT_PUBLIC_TREASURY_ADDRESS ?? "",
+        signTransaction: signTx,
+      });
+
       const result = await api.createPact({
-        contractId: process.env.NEXT_PUBLIC_CONTRACT_ID ?? "TESTNET_PLACEHOLDER",
+        contractId,
         title: form.title,
         description: form.description,
         creator: address!,
@@ -69,9 +86,10 @@ function CreatePactForm() {
         deadline: deadlineUnix,
         resolutionMode: form.mode,
         judge: form.judge || undefined,
+        voteOptions,
       });
 
-      await api.logInteraction(address!, "pact_created", result.id);
+      await api.logInteraction(address!, "pact_created", result.id, form.title);
       
       toast.success(t("success"));
       router.push(`/pact/${result.id}?invite=${result.code}`);
@@ -180,6 +198,14 @@ function CreatePactForm() {
             />
           </Field>
         )}
+
+        <VoteOptionsField
+          options={voteOptions}
+          setOptions={setVoteOptions}
+          customInput={customOptionInput}
+          setCustomInput={setCustomOptionInput}
+          t={t}
+        />
 
         <Button
           type="submit"
@@ -308,6 +334,109 @@ function DeadlineField({
           {t("deadline.hint")}
         </p>
       )}
+    </div>
+  );
+}
+
+function VoteOptionsField({
+  options,
+  setOptions,
+  customInput,
+  setCustomInput,
+  t,
+}: {
+  options: string[];
+  setOptions: React.Dispatch<React.SetStateAction<string[]>>;
+  customInput: string;
+  setCustomInput: React.Dispatch<React.SetStateAction<string>>;
+  t: ReturnType<typeof useTranslations<"Create">>;
+}) {
+  const DEFAULT_PRESETS = [
+    ["Yes", "No"],
+    ["Completed", "Not completed"],
+    ["Win", "Lose", "Draw"],
+  ];
+
+  function applyPreset(preset: string[]) {
+    setOptions([...preset]);
+  }
+
+  function addCustom() {
+    const trimmed = customInput.trim();
+    if (!trimmed || options.includes(trimmed)) return;
+    setOptions((o) => [...o, trimmed]);
+    setCustomInput("");
+  }
+
+  function removeOption(idx: number) {
+    if (options.length <= 2) return;
+    setOptions((o) => o.filter((_, i) => i !== idx));
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      <label className="text-sm font-medium leading-none text-foreground">
+        {t("labels.voteOptions")}
+      </label>
+      <p className="text-xs text-muted-foreground -mt-1">{t("labels.voteOptionsHint")}</p>
+
+      {/* Preset shortcuts */}
+      <div className="flex flex-wrap gap-2">
+        {DEFAULT_PRESETS.map((preset) => {
+          const label = preset.join(" / ");
+          const active = JSON.stringify(options) === JSON.stringify(preset);
+          return (
+            <button
+              key={label}
+              type="button"
+              onClick={() => applyPreset(preset)}
+              className={`px-3 py-1 rounded-full text-xs font-semibold border transition-colors ${
+                active
+                  ? "border-primary bg-primary/5 text-primary ring-1 ring-primary"
+                  : "border-border bg-card text-muted-foreground hover:text-foreground hover:bg-muted"
+              }`}
+            >
+              {label}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Current options as removable chips */}
+      <div className="flex flex-wrap gap-2 min-h-[32px]">
+        {options.map((opt, idx) => (
+          <span
+            key={opt}
+            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary/10 text-primary text-xs font-semibold border border-primary/20"
+          >
+            {opt}
+            {options.length > 2 && (
+              <button
+                type="button"
+                onClick={() => removeOption(idx)}
+                className="hover:text-destructive transition-colors leading-none"
+                aria-label={`Remove ${opt}`}
+              >
+                ×
+              </button>
+            )}
+          </span>
+        ))}
+      </div>
+
+      {/* Add custom option */}
+      <div className="flex gap-2">
+        <Input
+          placeholder={t("placeholders.voteOption")}
+          value={customInput}
+          onChange={(e) => setCustomInput(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addCustom(); } }}
+          maxLength={40}
+        />
+        <Button type="button" variant="outline" size="sm" onClick={addCustom} className="shrink-0">
+          {t("labels.addOption")}
+        </Button>
+      </div>
     </div>
   );
 }

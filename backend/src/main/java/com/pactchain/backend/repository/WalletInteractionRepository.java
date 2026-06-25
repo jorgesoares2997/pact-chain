@@ -9,4 +9,5 @@ import java.util.List;
 public interface WalletInteractionRepository extends JpaRepository<WalletInteraction, Long> {
     List<WalletInteraction> findByWalletOrderByCreatedAtDesc(String wallet, Pageable pageable);
     List<WalletInteraction> findByPactIdOrderByCreatedAtDesc(String pactId, Pageable pageable);
+    List<WalletInteraction> findAllByOrderByCreatedAtDesc(Pageable pageable);
 }

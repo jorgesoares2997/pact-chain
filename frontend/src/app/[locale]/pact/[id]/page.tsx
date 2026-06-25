@@ -12,7 +12,7 @@ import { useWallet } from "@/context/WalletContext";
 import type { Pact } from "@/types/pact";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent } from "@/components/ui/Card";
-import { Copy, AlertCircle, CheckCircle2 } from "lucide-react";
+import { Copy, AlertCircle, CheckCircle2, MessageCircle } from "lucide-react";
 
 export default function PactDashboard() {
   const t = useTranslations("Dashboard");
@@ -58,6 +58,12 @@ export default function PactDashboard() {
     setTimeout(() => setCopied(false), 2000);
   }
 
+  function shareWhatsApp() {
+    if (!inviteUrl || !pact) return;
+    const text = encodeURIComponent(`Join my pact "${pact.title}" on PactChain — stake ${(pact.stakeAmount / 1e7).toFixed(2)} USDC: ${inviteUrl}`);
+    window.open(`https://wa.me/?text=${text}`, "_blank");
+  }
+
   return (
     <main className="max-w-xl mx-auto px-4 py-8 sm:py-12">
       <div className="flex items-start justify-between mb-8 gap-4">
@@ -99,6 +105,15 @@ export default function PactDashboard() {
               >
                 {copied ? <CheckCircle2 className="h-4 w-4 mr-2 text-green-500" /> : <Copy className="h-4 w-4 mr-2" />}
                 {copied ? t("copied") : t("copy")}
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={shareWhatsApp}
+                className="shrink-0 h-9 text-[#25D366] border-[#25D366]/30 hover:bg-[#25D366]/10"
+              >
+                <MessageCircle className="h-4 w-4 mr-2" />
+                {t("shareWhatsApp")}
               </Button>
             </div>
           </CardContent>

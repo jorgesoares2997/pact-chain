@@ -1,4 +1,4 @@
-import type { CreatePactPayload, CreatePactResponse, Pact } from "@/types/pact";
+import type { CreatePactPayload, CreatePactResponse, Pact, PactStatus, Interaction } from "@/types/pact";
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
 
@@ -40,10 +40,17 @@ export const api = {
   createInvite: (pactId: string) =>
     request<{ code: string }>(`/api/pacts/${pactId}/invite`, { method: "POST" }),
 
+  listPacts: (status?: PactStatus) =>
+    request<Pact[]>(`/api/pacts${status ? `?status=${status}` : ""}`),
+
+  getActivity: (limit = 30) =>
+    request<Interaction[]>(`/api/interactions?limit=${limit}`),
+
   logInteraction: (
     wallet: string,
     action: string,
     pactId?: string,
+    pactTitle?: string,
     meta?: unknown
   ) =>
     request<{ ok: boolean }>("/api/interactions", {
@@ -52,6 +59,7 @@ export const api = {
         wallet,
         action,
         pactId,
+        pactTitle,
         meta: meta ? JSON.stringify(meta) : undefined,
       }),
     }),

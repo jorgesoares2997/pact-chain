@@ -7,12 +7,17 @@ import {
   nativeToScVal,
   Address,
   xdr,
+  Operation,
+  hash,
+  StrKey,
 } from "@stellar/stellar-sdk";
+import type { ResolutionMode } from "@/types/pact";
 
 export const NETWORK_PASSPHRASE = Networks.TESTNET;
 export const RPC_URL =
   process.env.NEXT_PUBLIC_STELLAR_RPC_URL ?? "https://soroban-testnet.stellar.org";
 export const CONTRACT_ID = process.env.NEXT_PUBLIC_CONTRACT_ID ?? "";
+export const WASM_HASH = process.env.NEXT_PUBLIC_CONTRACT_WASM_HASH ?? "";
 
 export const rpcServer = new SorobanRpc.Server(RPC_URL, { allowHttp: false });
 
@@ -74,6 +79,128 @@ export function addressVal(addr: string) {
 
 export function i128Val(n: bigint) {
   return nativeToScVal(n, { type: "i128" });
+}
+
+export interface DeployAndInitParams {
+  creatorAddress: string;
+  title: string;
+  description: string;
+  stakeAmountStroops: bigint;
+  maxParticipants: number;
+  deadlineUnix: number;
+  resolutionMode: ResolutionMode;
+  judge?: string;
+  usdcToken: string;
+  treasury: string;
+  signTransaction: (xdr: string) => Promise<string>;
+}
+
+/** Derives the contract ID that Soroban will assign to a newly deployed instance. */
+function deriveContractId(sourceAddress: string, salt: Buffer): string {
+  const networkId = hash(Buffer.from(NETWORK_PASSPHRASE));
+  const wasmHashBuf = Buffer.from(WASM_HASH, "hex");
+
+  const preimage = xdr.HashIdPreimage.envelopeTypeContractId(
+    new xdr.HashIdPreimageContractId({
+      networkId,
+      contractIdPreimage: xdr.ContractIdPreimage.contractIdPreimageFromAddress(
+        new xdr.ContractIdPreimageFromAddress({
+          address: xdr.ScAddress.scAddressTypeAccount(
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (xdr as any).AccountId.publicKeyTypeEd25519(
+              StrKey.decodeEd25519PublicKey(sourceAddress)
+            )
+          ),
+          salt,
+        })
+      ),
+    })
+  );
+
+  return StrKey.encodeContract(hash(preimage.toXDR()));
+}
+
+/**
+ * Deploys a fresh contract instance from NEXT_PUBLIC_CONTRACT_WASM_HASH,
+ * then calls `initialize` on it. Returns the new contract's Stellar address.
+ */
+export async function deployAndInitializePact(
+  params: DeployAndInitParams
+): Promise<string> {
+  const {
+    creatorAddress,
+    title,
+    description,
+    stakeAmountStroops,
+    maxParticipants,
+    deadlineUnix,
+    resolutionMode,
+    judge,
+    usdcToken,
+    treasury,
+    signTransaction,
+  } = params;
+
+  if (!WASM_HASH) throw new Error("NEXT_PUBLIC_CONTRACT_WASM_HASH is not set");
+
+  const salt = Buffer.from(
+    crypto.getRandomValues(new Uint8Array(32))
+  );
+
+  // --- Step 1: deploy contract instance ---
+  const deployOp = Operation.createCustomContract({
+    address: new Address(creatorAddress),
+    wasmHash: Buffer.from(WASM_HASH, "hex"),
+    salt,
+  });
+
+  const deployXdr = await buildAndSimulate(creatorAddress, deployOp);
+  const signedDeployXdr = await signTransaction(deployXdr);
+  await submitSigned(signedDeployXdr);
+
+  const contractId = deriveContractId(creatorAddress, salt);
+
+  // --- Step 2: call initialize ---
+  const resolutionModeScVal = (() => {
+    switch (resolutionMode) {
+      case "MAJORITY":
+        return xdr.ScVal.scvVec([nativeToScVal("Majority", { type: "symbol" })]);
+      case "JUDGE":
+        return xdr.ScVal.scvVec([
+          nativeToScVal("Judge", { type: "symbol" }),
+          new Address(judge!).toScVal(),
+        ]);
+      case "UNANIMITY":
+        return xdr.ScVal.scvVec([nativeToScVal("Unanimity", { type: "symbol" })]);
+    }
+  })();
+
+  // Option<Address>: Some(addr) = raw address ScVal, None = Void
+  const judgeScVal =
+    resolutionMode === "JUDGE" && judge
+      ? new Address(judge).toScVal()
+      : xdr.ScVal.scvVoid();
+
+  const contract = new Contract(contractId);
+  const initOp = contract.call(
+    "initialize",
+    new Address(creatorAddress).toScVal(),
+    nativeToScVal(title, { type: "string" }),
+    nativeToScVal(description, { type: "string" }),
+    i128Val(stakeAmountStroops),
+    nativeToScVal(maxParticipants, { type: "u32" }),
+    nativeToScVal(BigInt(deadlineUnix), { type: "u64" }),
+    resolutionModeScVal,
+    judgeScVal,
+    new Address(usdcToken).toScVal(),
+    new Address(treasury).toScVal()
+  );
+
+  const initXdr = await buildAndSimulate(creatorAddress, initOp);
+  const signedInitXdr = await signTransaction(initXdr);
+  await submitSigned(signedInitXdr);
+
+  return contractId;
 }
 
 export { Contract };

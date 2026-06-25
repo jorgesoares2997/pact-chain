@@ -41,12 +41,16 @@
       "deadlineTime": "Deadline time",
       "deadline": "Deadline",
       "mode": "Resolution mode",
-      "judge": "Judge Stellar address"
+      "judge": "Judge Stellar address",
+      "voteOptions": "Vote options",
+      "voteOptionsHint": "Define how participants vote on the outcome.",
+      "addOption": "+ Add"
     },
     "placeholders": {
       "title": "Who will finish the 30-day challenge?",
       "description": "What exactly are participants committing to?",
-      "judge": "G…"
+      "judge": "G…",
+      "voteOption": "Custom option…"
     },
     "modes": {
       "MAJORITY": {
@@ -90,7 +94,9 @@
     "disclaimer": "By joining, you agree to stake {stake} USDC. Funds are held in a Soroban smart contract and released to the winner(s) after resolution.",
     "joinButton": "Stake {stake} USDC & Join",
     "joining": "Joining…",
-    "success": "You joined the pact!"
+    "success": "You joined the pact!",
+    "connectToJoin": "Connect wallet to join",
+    "connectingWallet": "Connecting…"
   },
   "JoinDemo": {
     "demoBadge": "Demo — no wallet required",
@@ -112,6 +118,7 @@
     "shareLink": "Share invite link",
     "copy": "Copy",
     "copied": "Copied!",
+    "shareWhatsApp": "WhatsApp",
     "castVote": "Cast Your Vote",
     "viewResults": "View Results",
     "lockPact": "Lock Pact & Start Voting",
@@ -164,6 +171,7 @@
   "Activity": {
     "title": "Activity",
     "subtitle": "Recent interactions on the PactChain protocol.",
+    "empty": "No activity yet.",
     "events": {
       "joined": "joined",
       "staking": "staking",

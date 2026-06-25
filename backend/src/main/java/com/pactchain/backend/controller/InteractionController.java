@@ -19,7 +19,7 @@ public class InteractionController {
 
     @PostMapping
     public Map<String, Boolean> log(@Valid @RequestBody LogInteractionRequest req) {
-        pactService.logInteraction(req.getWallet(), req.getAction(), req.getPactId(), req.getMeta());
+        pactService.logInteraction(req.getWallet(), req.getAction(), req.getPactId(), req.getPactTitle(), req.getMeta());
         return Map.of("ok", true);
     }
 
@@ -30,6 +30,6 @@ public class InteractionController {
             @RequestParam(defaultValue = "50") int limit) {
         if (wallet != null) return pactService.getInteractionsByWallet(wallet, limit);
         if (pactId != null) return pactService.getInteractionsByPact(pactId, limit);
-        return List.of();
+        return pactService.getAllInteractions(limit);
     }
 }

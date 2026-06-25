@@ -42,10 +42,15 @@ public class PactService {
         pact.setDeadline(req.getDeadline());
         pact.setResolutionMode(req.getResolutionMode());
         pact.setJudge(req.getJudge());
+
+        if (req.getVoteOptions() != null && req.getVoteOptions().size() >= 2) {
+            pact.setVoteOptions(String.join(",", req.getVoteOptions()));
+        }
+
         pactRepo.save(pact);
 
         var code = generateInvite(pact);
-        logInteraction(req.getCreator(), "pact_created", pact.getId(), null);
+        logInteraction(req.getCreator(), "pact_created", pact.getId(), pact.getTitle(), null);
 
         return new CreatePactResponse(pact.getId(), code, frontendUrl + "/join/" + code);
     }
@@ -53,6 +58,12 @@ public class PactService {
     public Pact getPact(String id) {
         return pactRepo.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Pact not found: " + id));
+    }
+
+    public List<Pact> listPacts(Pact.Status status, int limit) {
+        var page = PageRequest.of(0, limit);
+        if (status != null) return pactRepo.findByStatusOrderByCreatedAtDesc(status, page);
+        return pactRepo.findAllByOrderByCreatedAtDesc(page);
     }
 
     @Transactional
@@ -82,13 +93,18 @@ public class PactService {
         return generateInvite(pact);
     }
 
-    public void logInteraction(String wallet, String action, String pactId, String meta) {
+    public void logInteraction(String wallet, String action, String pactId, String pactTitle, String meta) {
         var i = new WalletInteraction();
         i.setWallet(wallet);
         i.setAction(action);
         i.setPactId(pactId);
+        i.setPactTitle(pactTitle);
         i.setMeta(meta);
         interactionRepo.save(i);
+    }
+
+    public List<WalletInteraction> getAllInteractions(int limit) {
+        return interactionRepo.findAllByOrderByCreatedAtDesc(PageRequest.of(0, limit));
     }
 
     public List<WalletInteraction> getInteractionsByWallet(String wallet, int limit) {

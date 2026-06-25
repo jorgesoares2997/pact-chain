@@ -45,7 +45,7 @@ function VoteInner() {
     if (!selected) return toast.error(t("errorSelect"));
     setSubmitting(true);
     try {
-      await api.logInteraction(address!, "vote_cast", id, { candidate: selected });
+      await api.logInteraction(address!, "voted", id, pact?.title, { candidate: selected });
       toast.success(t("success"));
       router.push(`/pact/${id}`);
     } catch (e) {

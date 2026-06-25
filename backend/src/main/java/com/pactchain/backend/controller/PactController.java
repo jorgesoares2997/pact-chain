@@ -9,6 +9,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -22,6 +23,14 @@ public class PactController {
     @ResponseStatus(HttpStatus.CREATED)
     public CreatePactResponse create(@Valid @RequestBody CreatePactRequest req) {
         return pactService.createPact(req);
+    }
+
+    @GetMapping
+    public List<Pact> list(
+            @RequestParam(required = false) String status,
+            @RequestParam(defaultValue = "100") int limit) {
+        Pact.Status s = (status != null) ? Pact.Status.valueOf(status.toUpperCase()) : null;
+        return pactService.listPacts(s, limit);
     }
 
     @GetMapping("/{id}")

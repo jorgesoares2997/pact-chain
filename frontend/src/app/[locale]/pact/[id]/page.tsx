@@ -8,7 +8,7 @@ import { useTranslations } from "next-intl";
 import Spinner from "@/components/Spinner";
 import Countdown from "@/components/Countdown";
 import { api } from "@/lib/api";
-import { lockPact, resolvePact, judgeResolvePact, refundPact } from "@/lib/stellar";
+import { joinPact, lockPact, resolvePact, judgeResolvePact, refundPact } from "@/lib/stellar";
 import { useWallet } from "@/context/WalletContext";
 import type { Pact, Interaction } from "@/types/pact";
 import { Button } from "@/components/ui/Button";
@@ -202,15 +202,24 @@ export default function PactDashboard() {
         )
       )}
 
+      {/* Join button — shown to any connected wallet that hasn't joined yet */}
+      {pact.status === "OPEN" && address && !participants.includes(address) && (
+        <JoinFromPactButton
+          pact={pact}
+          onJoined={refreshAll}
+          signTx={signTx}
+        />
+      )}
+
       {/* Lock pact */}
       {pact.status === "OPEN" && address === pact.creator && (
-        <LockButton 
-          pactId={id} 
-          contractId={pact.contractId} 
-          signTx={signTx} 
-          onLocked={refreshAll} 
-          t={t} 
-          disabled={participants.length < 2}
+        <LockButton
+          pactId={id}
+          contractId={pact.contractId}
+          signTx={signTx}
+          onLocked={refreshAll}
+          t={t}
+          participantCount={participants.length}
         />
       )}
 
@@ -449,6 +458,55 @@ function ResolutionSection({
   );
 }
 
+// ── Join from pact page ──────────────────────────────────────────────────────
+
+function JoinFromPactButton({
+  pact,
+  onJoined,
+  signTx,
+}: {
+  pact: Pact;
+  onJoined: () => void;
+  signTx: (xdr: string) => Promise<string>;
+}) {
+  const { address } = useWallet();
+  const [loading, setLoading] = useState(false);
+  const [step, setStep] = useState<"idle" | "contract" | "backend">("idle");
+  const stakeUsdc = (pact.stakeAmount / 1e7).toFixed(2);
+
+  async function handleJoin() {
+    if (!address) return;
+    setLoading(true);
+    try {
+      setStep("contract");
+      await joinPact(pact.contractId, address, signTx);
+      setStep("backend");
+      await api.logInteraction(address, "joined_pact", pact.id, pact.title);
+      toast.success(`Joined! ${stakeUsdc} USDC staked on-chain.`);
+      onJoined();
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setLoading(false);
+      setStep("idle");
+    }
+  }
+
+  const label = () => {
+    if (!loading) return `Join & stake ${stakeUsdc} USDC`;
+    if (step === "contract") return `Staking ${stakeUsdc} USDC on-chain…`;
+    if (step === "backend") return "Recording participation…";
+    return "Joining…";
+  };
+
+  return (
+    <Button onClick={handleJoin} disabled={loading} variant="default" size="lg" className="w-full mb-4">
+      {loading && <Spinner size="sm" />}
+      {label()}
+    </Button>
+  );
+}
+
 // ── Lock button ─────────────────────────────────────────────────────────────
 
 function LockButton({
@@ -457,21 +515,23 @@ function LockButton({
   signTx,
   onLocked,
   t,
-  disabled,
+  participantCount,
 }: {
   pactId: string;
   contractId: string;
   signTx: (xdr: string) => Promise<string>;
   onLocked: () => void;
   t: ReturnType<typeof useTranslations<"Dashboard">>;
-  disabled?: boolean;
+  participantCount: number;
 }) {
   const { address } = useWallet();
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState<"idle" | "contract" | "backend">("idle");
+  const canLock = participantCount >= 2;
+  const needed = 2 - participantCount;
 
   async function handleLock() {
-    if (!address) return;
+    if (!address || !canLock) return;
     setLoading(true);
     try {
       setStep("contract");
@@ -497,13 +557,13 @@ function LockButton({
 
   return (
     <div className="mb-6 w-full">
-      <Button onClick={handleLock} disabled={loading || disabled} variant="default" size="lg" className="w-full">
+      <Button onClick={handleLock} disabled={loading || !canLock} variant="default" size="lg" className="w-full">
         {loading && <Spinner size="sm" />}
         {lockLabel()}
       </Button>
-      {disabled && (
+      {!canLock && (
         <p className="text-xs text-muted-foreground mt-2 text-center">
-          You need at least 2 participants to lock the pact.
+          Need {needed} more participant{needed !== 1 ? "s" : ""} to lock ({participantCount}/2 joined).
         </p>
       )}
     </div>

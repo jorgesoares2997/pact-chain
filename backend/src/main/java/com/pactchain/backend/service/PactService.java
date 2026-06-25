@@ -81,10 +81,13 @@ public class PactService {
         pactRepo.save(pact);
     }
 
+    @Transactional(readOnly = true)
     public Pact resolveInvite(String code) {
         var link = inviteRepo.findByCode(code)
                 .orElseThrow(() -> new ResourceNotFoundException("Invalid invite code: " + code));
-        return link.getPact();
+        Pact pact = link.getPact();
+        pact.getId(); // force proxy initialization within open session
+        return pact;
     }
 
     @Transactional

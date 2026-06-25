@@ -6,6 +6,7 @@ import { WalletProvider } from "@/context/WalletContext";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import Navbar from "@/components/Navbar";
 import BottomNav from "@/components/BottomNav";
+import FeedbackModal from "@/components/FeedbackModal";
 import "../globals.css";
 
 export const metadata: Metadata = {
@@ -48,6 +49,7 @@ export default async function RootLayout({
               <Navbar />
               <main className="flex-1 pb-20 sm:pb-0">{children}</main>
               <BottomNav />
+              <FeedbackModal />
             </WalletProvider>
           </ThemeProvider>
         </NextIntlClientProvider>

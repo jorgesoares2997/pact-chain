@@ -203,4 +203,102 @@ export async function deployAndInitializePact(
   return contractId;
 }
 
+// ── Generic single-call helper ───────────────────────────────────────────────
+
+async function invokeContract(
+  contractId: string,
+  method: string,
+  args: xdr.ScVal[],
+  callerAddress: string,
+  signTransaction: (xdr: string) => Promise<string>
+): Promise<void> {
+  const contract = new Contract(contractId);
+  const op = contract.call(method, ...args);
+  const txXdr = await buildAndSimulate(callerAddress, op);
+  const signedXdr = await signTransaction(txXdr);
+  await submitSigned(signedXdr);
+}
+
+// ── Contract actions ─────────────────────────────────────────────────────────
+
+/** participant calls join — transfers stake_amount USDC to contract */
+export async function joinPact(
+  contractId: string,
+  participantAddress: string,
+  signTransaction: (xdr: string) => Promise<string>
+): Promise<void> {
+  await invokeContract(
+    contractId,
+    "join",
+    [new Address(participantAddress).toScVal()],
+    participantAddress,
+    signTransaction
+  );
+}
+
+/** creator locks the pact — requires ≥2 on-chain participants */
+export async function lockPact(
+  contractId: string,
+  creatorAddress: string,
+  signTransaction: (xdr: string) => Promise<string>
+): Promise<void> {
+  await invokeContract(
+    contractId,
+    "lock",
+    [new Address(creatorAddress).toScVal()],
+    creatorAddress,
+    signTransaction
+  );
+}
+
+/** voter casts a vote for a candidate wallet */
+export async function votePact(
+  contractId: string,
+  voterAddress: string,
+  candidateAddress: string,
+  signTransaction: (xdr: string) => Promise<string>
+): Promise<void> {
+  await invokeContract(
+    contractId,
+    "vote",
+    [new Address(voterAddress).toScVal(), new Address(candidateAddress).toScVal()],
+    voterAddress,
+    signTransaction
+  );
+}
+
+/** judge picks the winner wallet (JUDGE mode only) */
+export async function judgeResolvePact(
+  contractId: string,
+  judgeAddress: string,
+  winnerAddress: string,
+  signTransaction: (xdr: string) => Promise<string>
+): Promise<void> {
+  await invokeContract(
+    contractId,
+    "judge_resolve",
+    [new Address(judgeAddress).toScVal(), new Address(winnerAddress).toScVal()],
+    judgeAddress,
+    signTransaction
+  );
+}
+
+/** anyone triggers resolution after deadline (MAJORITY / UNANIMITY) */
+export async function resolvePact(
+  contractId: string,
+  callerAddress: string,
+  signTransaction: (xdr: string) => Promise<string>
+): Promise<void> {
+  await invokeContract(contractId, "resolve", [], callerAddress, signTransaction);
+}
+
+/** trigger refund — UNANIMITY mode after 48h timeout with no consensus */
+export async function refundPact(
+  contractId: string,
+  callerAddress: string,
+  signTransaction: (xdr: string) => Promise<string>
+): Promise<void> {
+  await invokeContract(contractId, "refund", [], callerAddress, signTransaction);
+}
+
 export { Contract };

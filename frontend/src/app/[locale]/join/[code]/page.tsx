@@ -7,6 +7,7 @@ import { useTranslations } from "next-intl";
 import Spinner from "@/components/Spinner";
 import { useWallet } from "@/context/WalletContext";
 import { api } from "@/lib/api";
+import { joinPact } from "@/lib/stellar";
 import type { Pact } from "@/types/pact";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
@@ -16,11 +17,12 @@ export default function JoinPactPage() {
   const t = useTranslations("Join");
   const { code } = useParams<{ code: string }>();
   const router = useRouter();
-  const { address, connect, connecting } = useWallet();
+  const { address, connect, connecting, signTx } = useWallet();
 
   const [pact, setPact] = useState<Pact | null>(null);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [joining, setJoining] = useState(false);
+  const [step, setStep] = useState<"idle" | "contract" | "backend">("idle");
 
   useEffect(() => {
     api.resolveInvite(code).then(setPact).catch((e: Error) => setFetchError(e.message));
@@ -41,18 +43,33 @@ export default function JoinPactPage() {
   const stakeUsdc = (pact.stakeAmount / 1e7).toFixed(2);
 
   async function handleJoin() {
-    if (!pact) return;
+    if (!pact || !address) return;
     setJoining(true);
     try {
-      await api.logInteraction(address!, "joined_pact", pact.id, pact.title);
+      // 1. Stake on-chain
+      setStep("contract");
+      await joinPact(pact.contractId, address, signTx);
+
+      // 2. Record in backend
+      setStep("backend");
+      await api.logInteraction(address, "joined_pact", pact.id, pact.title);
+
       toast.success(t("success"));
       router.push(`/pact/${pact.id}`);
     } catch (e) {
       toast.error((e as Error).message);
     } finally {
       setJoining(false);
+      setStep("idle");
     }
   }
+
+  const joinLabel = () => {
+    if (!joining) return t("joinButton", { stake: stakeUsdc });
+    if (step === "contract") return `Staking ${stakeUsdc} USDC on-chain…`;
+    if (step === "backend") return "Recording participation…";
+    return t("joining");
+  };
 
   return (
     <main className="max-w-md mx-auto px-4 py-8 sm:py-12">
@@ -93,23 +110,12 @@ export default function JoinPactPage() {
 
         <CardFooter>
           {address ? (
-            <Button
-              onClick={handleJoin}
-              disabled={joining}
-              size="lg"
-              className="w-full"
-            >
+            <Button onClick={handleJoin} disabled={joining} size="lg" className="w-full">
               {joining && <Spinner size="sm" />}
-              {joining ? t("joining") : t("joinButton", { stake: stakeUsdc })}
+              {joinLabel()}
             </Button>
           ) : (
-            <Button
-              onClick={connect}
-              disabled={connecting}
-              size="lg"
-              variant="outline"
-              className="w-full"
-            >
+            <Button onClick={connect} disabled={connecting} size="lg" variant="outline" className="w-full">
               {connecting && <Spinner size="sm" />}
               {connecting ? t("connectingWallet") : t("connectToJoin")}
             </Button>

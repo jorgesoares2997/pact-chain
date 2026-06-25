@@ -63,6 +63,10 @@ export const api = {
   getPactVotes: (pactId: string) =>
     request<Interaction[]>(`/api/interactions?pactId=${pactId}&limit=100`),
 
+  getParticipants: (pactId: string) =>
+    request<Interaction[]>(`/api/interactions?pactId=${pactId}&limit=100`)
+      .then((list) => list.filter((i) => i.action === "joined_pact").map((i) => i.wallet)),
+
   hasVoted: (pactId: string, wallet: string) =>
     request<Interaction[]>(`/api/interactions?pactId=${pactId}&wallet=${wallet}&limit=10`)
       .then((list) => list.some((i) => i.action === "voted")),

@@ -1,9 +1,9 @@
 FROM eclipse-temurin:21-jdk-alpine AS build
 WORKDIR /app
-COPY .mvn .mvn
-COPY mvnw pom.xml ./
+COPY backend/.mvn .mvn
+COPY backend/mvnw backend/pom.xml ./
 RUN ./mvnw dependency:go-offline -q
-COPY src ./src
+COPY backend/src ./src
 RUN ./mvnw package -DskipTests -q
 
 FROM eclipse-temurin:21-jre-alpine

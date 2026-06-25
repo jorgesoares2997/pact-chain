@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams, useSearchParams, useRouter } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import toast from "react-hot-toast";
 import { useTranslations } from "next-intl";
@@ -12,7 +12,7 @@ import { useWallet } from "@/context/WalletContext";
 import type { Pact } from "@/types/pact";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent } from "@/components/ui/Card";
-import { Copy, AlertCircle, CheckCircle2, MessageCircle } from "lucide-react";
+import { Copy, AlertCircle, CheckCircle2, MessageCircle, Send, X as XIcon } from "lucide-react";
 
 export default function PactDashboard() {
   const t = useTranslations("Dashboard");
@@ -25,7 +25,6 @@ export default function PactDashboard() {
   const [copied, setCopied] = useState(false);
 
   const inviteCode = searchParams.get("invite");
-  const inviteUrl = inviteCode ? `${typeof window !== "undefined" ? window.location.origin : ""}/join/${inviteCode}` : null;
 
   useEffect(() => {
     api.getPact(id).then(setPact).catch((e: Error) => setError(e.message));
@@ -44,6 +43,12 @@ export default function PactDashboard() {
 
   const stakeUsdc = (pact.stakeAmount / 1e7).toFixed(2);
 
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
+  const inviteUrl = inviteCode ? `${origin}/join/${inviteCode}` : null;
+  const pactUrl = `${origin}/pact/${id}`;
+  const shareUrl = inviteUrl ?? pactUrl;
+  const shareText = `Join my commitment pact "${pact.title}" on PactChain — stake ${stakeUsdc} USDC 🤝`;
+
   const statusColor: Record<string, string> = {
     OPEN: "text-emerald-500 bg-emerald-500/10 border-emerald-200 dark:border-emerald-900",
     ACTIVE: "text-amber-500 bg-amber-500/10 border-amber-200 dark:border-amber-900",
@@ -51,21 +56,27 @@ export default function PactDashboard() {
     REFUNDED: "text-muted-foreground bg-muted border-border",
   };
 
-  function copyInvite() {
-    if (!inviteUrl) return;
-    navigator.clipboard.writeText(inviteUrl);
+  function copyLink() {
+    navigator.clipboard.writeText(shareUrl);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   }
 
   function shareWhatsApp() {
-    if (!inviteUrl || !pact) return;
-    const text = encodeURIComponent(`Join my pact "${pact.title}" on PactChain — stake ${(pact.stakeAmount / 1e7).toFixed(2)} USDC: ${inviteUrl}`);
-    window.open(`https://wa.me/?text=${text}`, "_blank");
+    window.open(`https://wa.me/?text=${encodeURIComponent(`${shareText} ${shareUrl}`)}`, "_blank");
+  }
+
+  function shareTelegram() {
+    window.open(`https://t.me/share/url?url=${encodeURIComponent(shareUrl)}&text=${encodeURIComponent(shareText)}`, "_blank");
+  }
+
+  function shareTwitter() {
+    window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(`${shareText}\n${shareUrl}`)}`, "_blank");
   }
 
   return (
     <main className="max-w-xl mx-auto px-4 py-8 sm:py-12">
+      {/* Header */}
       <div className="flex items-start justify-between mb-8 gap-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground mb-2">{pact.title}</h1>
@@ -81,48 +92,66 @@ export default function PactDashboard() {
         )}
       </div>
 
-      <p className="text-muted-foreground text-base mb-8 leading-relaxed">{pact.description}</p>
+      {pact.description && (
+        <p className="text-muted-foreground text-base mb-8 leading-relaxed">{pact.description}</p>
+      )}
 
+      {/* Stats */}
       <div className="grid grid-cols-3 gap-4 mb-8">
         <Stat label={t("stake")} value={`${stakeUsdc} USDC`} />
         <Stat label={t("mode")} value={pact.resolutionMode} />
         <Stat label={t("max")} value={`${pact.maxParticipants} ${t("people")}`} />
       </div>
 
-      {inviteUrl && (
-        <Card className="mb-8 border-dashed bg-muted/30">
-          <CardContent className="pt-6">
-            <div className="text-sm font-medium text-muted-foreground mb-2">{t("shareLink")}</div>
-            <div className="flex items-center gap-2">
-              <code className="text-sm bg-background border border-border rounded-md px-3 py-2 flex-1 truncate font-mono text-primary">
-                {inviteUrl}
-              </code>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={copyInvite}
-                className="shrink-0 h-9"
-              >
-                {copied ? <CheckCircle2 className="h-4 w-4 mr-2 text-green-500" /> : <Copy className="h-4 w-4 mr-2" />}
-                {copied ? t("copied") : t("copy")}
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={shareWhatsApp}
-                className="shrink-0 h-9 text-[#25D366] border-[#25D366]/30 hover:bg-[#25D366]/10"
-              >
-                <MessageCircle className="h-4 w-4 mr-2" />
-                {t("shareWhatsApp")}
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      {/* Share section */}
+      <Card className="mb-8 border-dashed bg-muted/30">
+        <CardContent className="pt-5 pb-5">
+          <div className="text-sm font-semibold text-foreground mb-1">{t("shareTitle")}</div>
+          <p className="text-xs text-muted-foreground mb-4">
+            {inviteUrl ? t("shareSubtitleInvite") : t("shareSubtitle")}
+          </p>
 
+          {/* Link row */}
+          <div className="flex items-center gap-2 mb-4">
+            <code className="text-xs bg-background border border-border rounded-md px-3 py-2 flex-1 truncate font-mono text-primary">
+              {shareUrl}
+            </code>
+            <Button variant="outline" size="sm" onClick={copyLink} className="shrink-0 h-9 gap-1.5">
+              {copied
+                ? <CheckCircle2 className="h-4 w-4 text-green-500" />
+                : <Copy className="h-4 w-4" />}
+              {copied ? t("copied") : t("copy")}
+            </Button>
+          </div>
+
+          {/* Share buttons */}
+          <div className="grid grid-cols-3 gap-2">
+            <ShareButton
+              onClick={shareWhatsApp}
+              icon={<MessageCircle className="h-4 w-4" />}
+              label="WhatsApp"
+              className="text-[#25D366] border-[#25D366]/30 hover:bg-[#25D366]/10 hover:border-[#25D366]/60"
+            />
+            <ShareButton
+              onClick={shareTelegram}
+              icon={<Send className="h-4 w-4" />}
+              label="Telegram"
+              className="text-[#2AABEE] border-[#2AABEE]/30 hover:bg-[#2AABEE]/10 hover:border-[#2AABEE]/60"
+            />
+            <ShareButton
+              onClick={shareTwitter}
+              icon={<XIcon className="h-4 w-4" />}
+              label="X / Twitter"
+              className="text-foreground border-border hover:bg-muted"
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Actions */}
       {pact.status === "ACTIVE" && address && (
-        <Link 
-          href={`/pact/${id}/vote`} 
+        <Link
+          href={`/pact/${id}/vote`}
           className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-11 px-8 w-full mb-4"
         >
           {t("castVote")}
@@ -130,8 +159,8 @@ export default function PactDashboard() {
       )}
 
       {pact.status === "RESOLVED" && (
-        <Link 
-          href={`/pact/${id}/result`} 
+        <Link
+          href={`/pact/${id}/result`}
           className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-11 px-8 w-full mb-4"
         >
           {t("viewResults")}
@@ -149,7 +178,30 @@ export default function PactDashboard() {
   );
 }
 
-function LockButton({ pactId, onLocked, t }: { pactId: string; onLocked: () => void; t: any }) {
+function ShareButton({
+  onClick,
+  icon,
+  label,
+  className,
+}: {
+  onClick: () => void;
+  icon: React.ReactNode;
+  label: string;
+  className: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex items-center justify-center gap-2 rounded-lg border px-3 py-2.5 text-xs font-semibold transition-all ${className}`}
+    >
+      {icon}
+      {label}
+    </button>
+  );
+}
+
+function LockButton({ pactId, onLocked, t }: { pactId: string; onLocked: () => void; t: ReturnType<typeof useTranslations<"Dashboard">> }) {
   const [loading, setLoading] = useState(false);
 
   async function lockPact() {
@@ -166,13 +218,7 @@ function LockButton({ pactId, onLocked, t }: { pactId: string; onLocked: () => v
   }
 
   return (
-    <Button
-      onClick={lockPact}
-      disabled={loading}
-      variant="default"
-      size="lg"
-      className="w-full mt-4"
-    >
+    <Button onClick={lockPact} disabled={loading} variant="default" size="lg" className="w-full mt-4">
       {loading && <Spinner size="sm" />}
       {loading ? t("locking") : t("lockPact")}
     </Button>

@@ -20,13 +20,6 @@ export default function VotePage() {
   );
 }
 
-// Placeholder participants — replaced with on-chain data once contract is live
-const MOCK_PARTICIPANTS = [
-  { address: "GABC1234ABCDEF", label: "Alice" },
-  { address: "GDEF5678GHIJKL", label: "Bob" },
-  { address: "GHIJ9012MNOPQR", label: "Carol" },
-];
-
 function VoteInner() {
   const t = useTranslations("Vote");
   const { id } = useParams<{ id: string }>();
@@ -45,7 +38,7 @@ function VoteInner() {
     if (!selected) return toast.error(t("errorSelect"));
     setSubmitting(true);
     try {
-      await api.logInteraction(address!, "voted", id, pact?.title, { candidate: selected });
+      await api.logInteraction(address!, "voted", id, pact?.title, { vote: selected });
       toast.success(t("success"));
       router.push(`/pact/${id}`);
     } catch (e) {
@@ -57,39 +50,40 @@ function VoteInner() {
 
   if (!pact) return <div className="flex justify-center items-center min-h-[50vh]"><Spinner size="lg" /></div>;
 
-  const candidates = MOCK_PARTICIPANTS.filter((p) => p.address !== address);
+  const options = pact.voteOptions
+    ? pact.voteOptions.split(",").map((o) => o.trim()).filter(Boolean)
+    : ["Yes", "No"];
 
   return (
     <main className="max-w-md mx-auto px-4 py-8 sm:py-12">
       <div className="mb-8">
         <h1 className="text-2xl font-bold tracking-tight text-foreground mb-1">{t("title")}</h1>
         <p className="text-primary font-medium text-sm mb-2">{pact.title}</p>
-        <p className="text-muted-foreground text-sm">
-          {t("description")}
-        </p>
+        <p className="text-muted-foreground text-sm">{t("description")}</p>
       </div>
 
       <div className="flex flex-col gap-3 mb-8">
-        {candidates.map((p) => {
-          const isSelected = selected === p.address;
+        {options.map((option) => {
+          const isSelected = selected === option;
           return (
             <button
-              key={p.address}
-              onClick={() => setSelected(p.address)}
+              key={option}
+              onClick={() => setSelected(option)}
               className={`flex items-center gap-4 p-4 rounded-xl border text-left transition-all ${
                 isSelected
                   ? "border-primary bg-primary/5 ring-1 ring-primary"
                   : "border-border bg-card hover:bg-muted"
               }`}
             >
-              <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-sm font-bold shrink-0 text-primary">
-                {p.label[0]}
+              <div
+                className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold shrink-0 transition-colors ${
+                  isSelected ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
+                }`}
+              >
+                {isSelected ? <Check className="h-5 w-5" /> : option[0].toUpperCase()}
               </div>
-              <div className="flex-1 min-w-0">
-                <div className="text-foreground text-sm font-semibold">{p.label}</div>
-                <div className="text-muted-foreground text-xs font-mono truncate">{p.address}</div>
-              </div>
-              {isSelected && <Check className="h-5 w-5 text-primary" />}
+              <span className="flex-1 text-foreground text-sm font-semibold">{option}</span>
+              {isSelected && <Check className="h-5 w-5 text-primary shrink-0" />}
             </button>
           );
         })}

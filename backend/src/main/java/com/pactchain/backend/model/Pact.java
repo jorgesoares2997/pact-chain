@@ -60,6 +60,16 @@ public class Pact {
     @Column(name = "vote_options", nullable = false, length = 500)
     private String voteOptions = "Yes,No";
 
+    @Column(name = "category_id")
+    private Integer categoryId;
+
+    @Column(name = "total_locked_value", nullable = false)
+    private long totalLockedValue = 0;
+
+    /** FK to results.id — set after resolution */
+    @Column(name = "winning_result_id")
+    private Long winningResultId;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;

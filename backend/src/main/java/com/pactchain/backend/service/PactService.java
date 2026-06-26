@@ -3,12 +3,8 @@ package com.pactchain.backend.service;
 import com.pactchain.backend.dto.CreatePactRequest;
 import com.pactchain.backend.dto.CreatePactResponse;
 import com.pactchain.backend.exception.ResourceNotFoundException;
-import com.pactchain.backend.model.InviteLink;
-import com.pactchain.backend.model.Pact;
-import com.pactchain.backend.model.WalletInteraction;
-import com.pactchain.backend.repository.InviteLinkRepository;
-import com.pactchain.backend.repository.PactRepository;
-import com.pactchain.backend.repository.WalletInteractionRepository;
+import com.pactchain.backend.model.*;
+import com.pactchain.backend.repository.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.PageRequest;
@@ -25,6 +21,11 @@ public class PactService {
     private final PactRepository pactRepo;
     private final InviteLinkRepository inviteRepo;
     private final WalletInteractionRepository interactionRepo;
+    private final PactResultRepository resultRepo;
+    private final PactParticipantRepository participantRepo;
+    private final PactVoteRepository voteRepo;
+    private final TransactionRepository txRepo;
+    private final ResolutionLogRepository resolutionLogRepo;
 
     @Value("${pactchain.cors.allowed-origins:http://localhost:3000}")
     private String frontendUrl;
@@ -42,12 +43,27 @@ public class PactService {
         pact.setDeadline(req.getDeadline());
         pact.setResolutionMode(req.getResolutionMode());
         pact.setJudge(req.getJudge());
+        pact.setCategoryId(req.getCategoryId());
 
         if (req.getVoteOptions() != null && req.getVoteOptions().size() >= 2) {
             pact.setVoteOptions(String.join(",", req.getVoteOptions()));
         }
 
         pactRepo.save(pact);
+
+        // Add creator as first participant
+        addParticipant(pact.getId(), req.getCreator(), pact.getStakeAmount(), null);
+
+        // Seed result rows from vote options so votes can reference them
+        for (String option : pact.getVoteOptionList()) {
+            if (!resultRepo.existsByPactIdAndCandidateWallet(pact.getId(), option)) {
+                var result = new PactResult();
+                result.setPactId(pact.getId());
+                result.setCandidateWallet(option);
+                result.setLabel(option);
+                resultRepo.save(result);
+            }
+        }
 
         var code = generateInvite(pact);
         logInteraction(req.getCreator(), "pact_created", pact.getId(), pact.getTitle(), null);
@@ -78,7 +94,102 @@ public class PactService {
         var pact = getPact(id);
         pact.setWinner(winner);
         pact.setStatus(Pact.Status.RESOLVED);
+        // Link winning_result_id if the winner matches a result row
+        resultRepo.findByPactIdAndCandidateWallet(id, winner)
+                .ifPresent(r -> pact.setWinningResultId(r.getId()));
         pactRepo.save(pact);
+    }
+
+    @Transactional
+    public void addParticipant(String pactId, String wallet, long stakeAmount, String txHash) {
+        if (!participantRepo.existsByPactIdAndWallet(pactId, wallet)) {
+            var p = new PactParticipant();
+            p.setPactId(pactId);
+            p.setWallet(wallet);
+            p.setStakeAmount(stakeAmount);
+            p.setTxHash(txHash);
+            participantRepo.save(p);
+        }
+        // Update total_locked_value
+        var pact = getPact(pactId);
+        long count = participantRepo.countByPactId(pactId);
+        pact.setTotalLockedValue(count * pact.getStakeAmount());
+        pactRepo.save(pact);
+
+        // Ensure a result row exists for this wallet (for MAJORITY/UNANIMITY voting)
+        if (!resultRepo.existsByPactIdAndCandidateWallet(pactId, wallet)) {
+            var result = new PactResult();
+            result.setPactId(pactId);
+            result.setCandidateWallet(wallet);
+            result.setLabel(wallet.substring(0, 6) + "…" + wallet.substring(wallet.length() - 4));
+            resultRepo.save(result);
+        }
+    }
+
+    @Transactional
+    public void recordVote(String pactId, String voterWallet, String candidateWallet, String txHash) {
+        var result = resultRepo.findByPactIdAndCandidateWallet(pactId, candidateWallet)
+                .orElseGet(() -> {
+                    var r = new PactResult();
+                    r.setPactId(pactId);
+                    r.setCandidateWallet(candidateWallet);
+                    r.setLabel(candidateWallet.substring(0, 6) + "…" + candidateWallet.substring(candidateWallet.length() - 4));
+                    return resultRepo.save(r);
+                });
+
+        if (!voteRepo.existsByPactIdAndVoterWallet(pactId, voterWallet)) {
+            var vote = new PactVote();
+            vote.setPactId(pactId);
+            vote.setVoterWallet(voterWallet);
+            vote.setResultId(result.getId());
+            vote.setTxHash(txHash);
+            voteRepo.save(vote);
+
+            result.setTotalVotes(result.getTotalVotes() + 1);
+            resultRepo.save(result);
+        }
+    }
+
+    @Transactional
+    public void recordResolution(String pactId, String resolverWallet, String resolutionType,
+                                  String winnerWallet, String txHash, String notes) {
+        Long winningResultId = null;
+        if (winnerWallet != null) {
+            var result = resultRepo.findByPactIdAndCandidateWallet(pactId, winnerWallet).orElse(null);
+            if (result != null) winningResultId = result.getId();
+        }
+
+        var log = new ResolutionLog();
+        log.setPactId(pactId);
+        log.setResolverWallet(resolverWallet);
+        log.setResolutionType(resolutionType);
+        log.setWinningResultId(winningResultId);
+        log.setTxHash(txHash);
+        log.setNotes(notes);
+        resolutionLogRepo.save(log);
+    }
+
+    @Transactional
+    public void recordTransaction(String wallet, String pactId, String action, long amount, String txHash) {
+        var tx = new Transaction();
+        tx.setWallet(wallet);
+        tx.setPactId(pactId);
+        tx.setAction(action);
+        tx.setAmount(amount);
+        tx.setTxHash(txHash);
+        txRepo.save(tx);
+    }
+
+    public List<PactResult> getResults(String pactId) {
+        return resultRepo.findByPactIdOrderByTotalVotesDesc(pactId);
+    }
+
+    public List<PactParticipant> getParticipants(String pactId) {
+        return participantRepo.findByPactIdOrderByJoinedAtAsc(pactId);
+    }
+
+    public boolean hasVoted(String pactId, String wallet) {
+        return voteRepo.existsByPactIdAndVoterWallet(pactId, wallet);
     }
 
     @Transactional(readOnly = true)

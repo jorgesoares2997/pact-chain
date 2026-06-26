@@ -36,6 +36,9 @@ public class CreatePactRequest {
 
     private String judge;
 
+    /** Optional category ID from the categories table */
+    private Integer categoryId;
+
     /** Vote option labels, e.g. ["Yes","No"]. Defaults to Yes/No if absent. */
     private List<String> voteOptions;
 }

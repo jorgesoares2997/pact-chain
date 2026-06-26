@@ -3,6 +3,8 @@ package com.pactchain.backend.controller;
 import com.pactchain.backend.dto.CreatePactRequest;
 import com.pactchain.backend.dto.CreatePactResponse;
 import com.pactchain.backend.model.Pact;
+import com.pactchain.backend.model.PactParticipant;
+import com.pactchain.backend.model.PactResult;
 import com.pactchain.backend.service.PactService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -59,5 +61,41 @@ public class PactController {
     public Map<String, String> createInvite(@PathVariable String id) {
         String code = pactService.createInviteForPact(id);
         return Map.of("code", code);
+    }
+
+    @GetMapping("/{id}/participants")
+    public List<PactParticipant> getParticipants(@PathVariable String id) {
+        return pactService.getParticipants(id);
+    }
+
+    @PostMapping("/{id}/participants")
+    @ResponseStatus(HttpStatus.CREATED)
+    public Map<String, Boolean> addParticipant(
+            @PathVariable String id,
+            @RequestBody Map<String, String> body) {
+        var pact = pactService.getPact(id);
+        pactService.addParticipant(id, body.get("wallet"), pact.getStakeAmount(), body.get("txHash"));
+        return Map.of("ok", true);
+    }
+
+    @GetMapping("/{id}/results")
+    public List<PactResult> getResults(@PathVariable String id) {
+        return pactService.getResults(id);
+    }
+
+    @PostMapping("/{id}/votes")
+    @ResponseStatus(HttpStatus.CREATED)
+    public Map<String, Boolean> recordVote(
+            @PathVariable String id,
+            @RequestBody Map<String, String> body) {
+        pactService.recordVote(id, body.get("voterWallet"), body.get("candidateWallet"), body.get("txHash"));
+        return Map.of("ok", true);
+    }
+
+    @GetMapping("/{id}/votes/check")
+    public Map<String, Boolean> hasVoted(
+            @PathVariable String id,
+            @RequestParam String wallet) {
+        return Map.of("voted", pactService.hasVoted(id, wallet));
     }
 }

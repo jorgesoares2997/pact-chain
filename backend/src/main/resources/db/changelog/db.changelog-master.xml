@@ -95,4 +95,228 @@
     </addColumn>
   </changeSet>
 
+
+  <!-- ================================================================
+       003 — Structured schema: users, categories, results, participants,
+             transactions, resolution_logs
+             All additive — existing tables / columns untouched.
+       ================================================================ -->
+  <changeSet id="003-structured-schema" author="pactchain">
+
+    <!-- ── users ──────────────────────────────────────────────────── -->
+    <createTable tableName="users">
+      <column name="id" type="BIGINT" autoIncrement="true">
+        <constraints primaryKey="true" nullable="false"/>
+      </column>
+      <column name="wallet_address" type="VARCHAR(80)">
+        <constraints nullable="false" unique="true"/>
+      </column>
+      <column name="display_name" type="VARCHAR(80)"/>
+      <column name="email" type="VARCHAR(120)"/>
+      <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+        <constraints nullable="false"/>
+      </column>
+    </createTable>
+
+    <!-- ── categories ─────────────────────────────────────────────── -->
+    <createTable tableName="categories">
+      <column name="id" type="INT" autoIncrement="true">
+        <constraints primaryKey="true" nullable="false"/>
+      </column>
+      <column name="name" type="VARCHAR(60)">
+        <constraints nullable="false" unique="true"/>
+      </column>
+      <column name="icon" type="VARCHAR(10)"/>
+    </createTable>
+
+    <insert tableName="categories"><column name="name" value="Health"/><column name="icon" value="🏃"/></insert>
+    <insert tableName="categories"><column name="name" value="Finance"/><column name="icon" value="💰"/></insert>
+    <insert tableName="categories"><column name="name" value="Learning"/><column name="icon" value="📚"/></insert>
+    <insert tableName="categories"><column name="name" value="Sport"/><column name="icon" value="⚽"/></insert>
+    <insert tableName="categories"><column name="name" value="Work"/><column name="icon" value="💼"/></insert>
+    <insert tableName="categories"><column name="name" value="Other"/><column name="icon" value="🤝"/></insert>
+
+    <!-- ── pacts: add category, total_locked_value, winning_result_id ─ -->
+    <addColumn tableName="pacts">
+      <column name="category_id" type="INT"/>
+    </addColumn>
+    <addColumn tableName="pacts">
+      <!-- sum of all participant stakes; updated on each join/refund -->
+      <column name="total_locked_value" type="BIGINT" defaultValueNumeric="0">
+        <constraints nullable="false"/>
+      </column>
+    </addColumn>
+    <addColumn tableName="pacts">
+      <!-- FK to results.id set after resolution — replaces raw winner varchar -->
+      <column name="winning_result_id" type="BIGINT"/>
+    </addColumn>
+
+    <addForeignKeyConstraint
+      baseTableName="pacts" baseColumnNames="category_id"
+      referencedTableName="categories" referencedColumnNames="id"
+      constraintName="fk_pact_category"/>
+
+    <!-- ── results (replaces vote_options comma-string) ───────────── -->
+    <!-- Each row is one voteable candidate for a pact.
+         In MAJORITY/UNANIMITY: candidates are participant wallets.
+         In JUDGE: same, judge picks from this list.           -->
+    <createTable tableName="results">
+      <column name="id" type="BIGINT" autoIncrement="true">
+        <constraints primaryKey="true" nullable="false"/>
+      </column>
+      <column name="pact_id" type="VARCHAR(20)">
+        <constraints nullable="false" foreignKeyName="fk_result_pact" references="pacts(id)"/>
+      </column>
+      <!-- wallet address of the candidate participant -->
+      <column name="candidate_wallet" type="VARCHAR(80)">
+        <constraints nullable="false"/>
+      </column>
+      <!-- display label (can be wallet alias or custom name) -->
+      <column name="label" type="VARCHAR(80)"/>
+      <!-- votes received for this candidate -->
+      <column name="total_votes" type="INT" defaultValueNumeric="0">
+        <constraints nullable="false"/>
+      </column>
+      <!-- set after resolution: (winner_total_staked - fee) / winner_stake -->
+      <column name="payout_multiplier" type="DECIMAL(10,4)"/>
+      <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+        <constraints nullable="false"/>
+      </column>
+    </createTable>
+
+    <addUniqueConstraint tableName="results" columnNames="pact_id,candidate_wallet"
+      constraintName="uq_result_pact_candidate"/>
+
+    <addForeignKeyConstraint
+      baseTableName="pacts" baseColumnNames="winning_result_id"
+      referencedTableName="results" referencedColumnNames="id"
+      constraintName="fk_pact_winning_result"/>
+
+    <createIndex tableName="results" indexName="idx_results_pact">
+      <column name="pact_id"/>
+    </createIndex>
+
+    <!-- ── pact_participants (replaces joined_pact interactions) ───── -->
+    <createTable tableName="pact_participants">
+      <column name="id" type="BIGINT" autoIncrement="true">
+        <constraints primaryKey="true" nullable="false"/>
+      </column>
+      <column name="pact_id" type="VARCHAR(20)">
+        <constraints nullable="false" foreignKeyName="fk_participant_pact" references="pacts(id)"/>
+      </column>
+      <column name="wallet" type="VARCHAR(80)">
+        <constraints nullable="false"/>
+      </column>
+      <!-- stake snapshot at join time (stroops) -->
+      <column name="stake_amount" type="BIGINT">
+        <constraints nullable="false"/>
+      </column>
+      <!-- Stellar transaction hash for the join tx -->
+      <column name="tx_hash" type="VARCHAR(128)"/>
+      <column name="joined_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+        <constraints nullable="false"/>
+      </column>
+    </createTable>
+
+    <addUniqueConstraint tableName="pact_participants" columnNames="pact_id,wallet"
+      constraintName="uq_participant_pact_wallet"/>
+
+    <createIndex tableName="pact_participants" indexName="idx_participants_pact">
+      <column name="pact_id"/>
+    </createIndex>
+    <createIndex tableName="pact_participants" indexName="idx_participants_wallet">
+      <column name="wallet"/>
+    </createIndex>
+
+    <!-- ── pact_votes (replaces voted interactions) ────────────────── -->
+    <createTable tableName="pact_votes">
+      <column name="id" type="BIGINT" autoIncrement="true">
+        <constraints primaryKey="true" nullable="false"/>
+      </column>
+      <column name="pact_id" type="VARCHAR(20)">
+        <constraints nullable="false" foreignKeyName="fk_vote_pact" references="pacts(id)"/>
+      </column>
+      <column name="voter_wallet" type="VARCHAR(80)">
+        <constraints nullable="false"/>
+      </column>
+      <!-- FK to the results row the voter chose -->
+      <column name="result_id" type="BIGINT">
+        <constraints nullable="false" foreignKeyName="fk_vote_result" references="results(id)"/>
+      </column>
+      <!-- Stellar transaction hash for the vote tx -->
+      <column name="tx_hash" type="VARCHAR(128)"/>
+      <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+        <constraints nullable="false"/>
+      </column>
+    </createTable>
+
+    <addUniqueConstraint tableName="pact_votes" columnNames="pact_id,voter_wallet"
+      constraintName="uq_vote_pact_voter"/>
+
+    <createIndex tableName="pact_votes" indexName="idx_votes_pact">
+      <column name="pact_id"/>
+    </createIndex>
+
+    <!-- ── transactions (on-chain tx log with hash) ────────────────── -->
+    <createTable tableName="transactions">
+      <column name="id" type="BIGINT" autoIncrement="true">
+        <constraints primaryKey="true" nullable="false"/>
+      </column>
+      <column name="tx_hash" type="VARCHAR(128)">
+        <constraints unique="true"/>
+      </column>
+      <column name="wallet" type="VARCHAR(80)">
+        <constraints nullable="false"/>
+      </column>
+      <column name="pact_id" type="VARCHAR(20)">
+        <constraints foreignKeyName="fk_tx_pact" references="pacts(id)"/>
+      </column>
+      <!-- join, lock, vote, resolve, refund, judge_resolve -->
+      <column name="action" type="VARCHAR(40)">
+        <constraints nullable="false"/>
+      </column>
+      <!-- amount involved in stroops (0 for non-financial actions) -->
+      <column name="amount" type="BIGINT" defaultValueNumeric="0">
+        <constraints nullable="false"/>
+      </column>
+      <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+        <constraints nullable="false"/>
+      </column>
+    </createTable>
+
+    <createIndex tableName="transactions" indexName="idx_tx_wallet">
+      <column name="wallet"/>
+    </createIndex>
+    <createIndex tableName="transactions" indexName="idx_tx_pact">
+      <column name="pact_id"/>
+    </createIndex>
+
+    <!-- ── resolution_logs (audit trail for every resolution) ─────── -->
+    <createTable tableName="resolution_logs">
+      <column name="id" type="BIGINT" autoIncrement="true">
+        <constraints primaryKey="true" nullable="false"/>
+      </column>
+      <column name="pact_id" type="VARCHAR(20)">
+        <constraints nullable="false" foreignKeyName="fk_reslog_pact" references="pacts(id)"/>
+      </column>
+      <column name="resolver_wallet" type="VARCHAR(80)">
+        <constraints nullable="false"/>
+      </column>
+      <!-- MAJORITY, UNANIMITY, JUDGE, REFUND -->
+      <column name="resolution_type" type="VARCHAR(20)">
+        <constraints nullable="false"/>
+      </column>
+      <column name="winning_result_id" type="BIGINT">
+        <constraints foreignKeyName="fk_reslog_result" references="results(id)"/>
+      </column>
+      <!-- Stellar tx hash of the resolve/judge_resolve/refund call -->
+      <column name="tx_hash" type="VARCHAR(128)"/>
+      <column name="notes" type="VARCHAR(500)"/>
+      <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+        <constraints nullable="false"/>
+      </column>
+    </createTable>
+
+  </changeSet>
+
 </databaseChangeLog>

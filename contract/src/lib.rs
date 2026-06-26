@@ -1,7 +1,7 @@
 #![no_std]
 
 use soroban_sdk::{
-    contract, contractimpl, contracttype, token, Address, Env, Map, String, Vec,
+    contract, contractimpl, contracttype, token, Address, Env, Map, Vec,
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -19,41 +19,37 @@ pub enum ResolutionMode {
 #[contracttype]
 #[derive(Clone, PartialEq, Eq)]
 pub enum PactStatus {
-    Open,       // accepting participants
-    Active,     // locked, voting window open
-    Resolved,   // winner(s) paid out
-    Refunded,   // unanimity timeout — everyone refunded
+    Open,      // accepting joins & votes (until deadline)
+    Resolved,  // winner(s) paid out
+    Refunded,  // no consensus — everyone refunded
 }
 
 #[contracttype]
 #[derive(Clone)]
 pub struct PactState {
     pub creator: Address,
-    pub title: String,
-    pub description: String,
-    pub stake_amount: i128,         // required stake per participant (in USDC stroops)
+    pub stake_amount: i128,
     pub max_participants: u32,
-    pub deadline: u64,              // voting deadline (Unix timestamp, seconds)
+    pub deadline: u64,
     pub resolution_mode: ResolutionMode,
-    pub judge: Option<Address>,     // only used in Judge mode
-    pub usdc_token: Address,        // USDC contract address
-    pub treasury: Address,          // protocol fee recipient
+    pub judge: Option<Address>,
+    pub usdc_token: Address,
+    pub treasury: Address,
     pub status: PactStatus,
     pub total_staked: i128,
-    pub winner: Option<Address>,
+    pub winning_option: Option<u32>,
+    pub options_count: u32,    // number of vote options (2 = Yes/No)
 }
 
-// Storage keys
 #[contracttype]
 pub enum DataKey {
     Pact,
-    Participants,           // Map<Address, i128>  (address → amount staked)
-    Votes,                  // Map<Address, Address>  (voter → candidate)
-    VoteCount,              // Map<Address, u32>
+    Participants,    // Map<Address, i128>  address → stake
+    Votes,           // Map<Address, u32>   voter → option_index
+    VoteCount,       // Map<u32, u32>       option_index → vote_count
 }
 
-const FEE_BPS: i128 = 200; // 2% = 200 basis points
-const UNANIMITY_TIMEOUT_SECS: u64 = 48 * 3600;
+const FEE_BPS: i128 = 200; // 2%
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Contract
@@ -64,23 +60,21 @@ pub struct PactChainContract;
 
 #[contractimpl]
 impl PactChainContract {
-    /// Initialize a new pact. The creator must call this once.
+    /// Initialize a new pact. Creator is auto-joined (stakes immediately).
     pub fn initialize(
         env: Env,
         creator: Address,
-        title: String,
-        description: String,
         stake_amount: i128,
         max_participants: u32,
         deadline: u64,
         resolution_mode: ResolutionMode,
         judge: Option<Address>,
+        options_count: u32,
         usdc_token: Address,
         treasury: Address,
-    ) -> PactState {
+    ) {
         creator.require_auth();
 
-        // Guard: cannot re-initialize
         if env.storage().instance().has(&DataKey::Pact) {
             panic!("already initialized");
         }
@@ -88,214 +82,292 @@ impl PactChainContract {
         assert!(stake_amount > 0, "stake must be positive");
         assert!(max_participants >= 2, "need at least 2 participants");
         assert!(deadline > env.ledger().timestamp(), "deadline must be future");
+        assert!(options_count >= 2 && options_count <= 8, "2-8 options");
 
         if resolution_mode == ResolutionMode::Judge {
-            assert!(judge.is_some(), "judge address required for Judge mode");
+            assert!(judge.is_some(), "judge required");
         }
 
         let state = PactState {
-            creator,
-            title,
-            description,
+            creator: creator.clone(),
             stake_amount,
             max_participants,
             deadline,
             resolution_mode,
             judge,
-            usdc_token,
+            usdc_token: usdc_token.clone(),
             treasury,
             status: PactStatus::Open,
             total_staked: 0,
-            winner: None,
+            winning_option: None,
+            options_count,
         };
 
         env.storage().instance().set(&DataKey::Pact, &state);
-        env.storage()
-            .instance()
-            .set(&DataKey::Participants, &Map::<Address, i128>::new(&env));
-        env.storage()
-            .instance()
-            .set(&DataKey::Votes, &Map::<Address, Address>::new(&env));
-        env.storage()
-            .instance()
-            .set(&DataKey::VoteCount, &Map::<Address, u32>::new(&env));
+        env.storage().instance().set(&DataKey::Participants, &Map::<Address, i128>::new(&env));
+        env.storage().instance().set(&DataKey::Votes, &Map::<Address, u32>::new(&env));
+        env.storage().instance().set(&DataKey::VoteCount, &Map::<u32, u32>::new(&env));
 
-        state
+        // Auto-join creator
+        Self::_join_internal(&env, creator, stake_amount, &usdc_token);
     }
 
-    /// Join the pact by staking USDC. Transfers `stake_amount` from caller to contract.
+    /// Join the pact by staking USDC. Open to anyone until deadline or max_participants.
     pub fn join(env: Env, participant: Address) {
         participant.require_auth();
 
-        let mut state: PactState = env.storage().instance().get(&DataKey::Pact).unwrap();
+        let state: PactState = env.storage().instance().get(&DataKey::Pact).unwrap();
         assert!(state.status == PactStatus::Open, "pact not open");
+        assert!(env.ledger().timestamp() < state.deadline, "deadline passed");
 
-        let mut participants: Map<Address, i128> = env
-            .storage()
-            .instance()
-            .get(&DataKey::Participants)
-            .unwrap();
+        let participants: Map<Address, i128> = env.storage().instance().get(&DataKey::Participants).unwrap();
+        assert!(!participants.contains_key(participant.clone()), "already joined");
+        assert!((participants.len() as u32) < state.max_participants, "pact full");
 
-        assert!(
-            !participants.contains_key(participant.clone()),
-            "already joined"
-        );
-        assert!(
-            (participants.len() as u32) < state.max_participants,
-            "pact full"
-        );
-        assert!(
-            env.ledger().timestamp() < state.deadline,
-            "deadline passed"
-        );
-
-        // Transfer USDC from participant to this contract
-        let token_client = token::Client::new(&env, &state.usdc_token);
-        token_client.transfer(
-            &participant,
-            &env.current_contract_address(),
-            &state.stake_amount,
-        );
-
-        participants.set(participant.clone(), state.stake_amount);
-        state.total_staked += state.stake_amount;
-
-        env.storage()
-            .instance()
-            .set(&DataKey::Participants, &participants);
-        env.storage().instance().set(&DataKey::Pact, &state);
+        let usdc = state.usdc_token.clone();
+        let stake = state.stake_amount;
+        Self::_join_internal(&env, participant, stake, &usdc);
     }
 
-    /// Lock the pact (creator action). Once locked, no new joins are allowed,
-    /// voting begins.
-    pub fn lock(env: Env, caller: Address) {
-        caller.require_auth();
-        let mut state: PactState = env.storage().instance().get(&DataKey::Pact).unwrap();
-        assert!(state.status == PactStatus::Open, "pact not open");
-        assert!(state.creator == caller, "only creator can lock");
-
-        let participants: Map<Address, i128> = env
-            .storage()
-            .instance()
-            .get(&DataKey::Participants)
-            .unwrap();
-        assert!(participants.len() >= 2, "need at least 2 participants");
-
-        state.status = PactStatus::Active;
-        env.storage().instance().set(&DataKey::Pact, &state);
-    }
-
-    /// Cast a vote. Voter selects a candidate (must be a participant).
-    /// Participants cannot vote for themselves.
-    pub fn vote(env: Env, voter: Address, candidate: Address) {
+    /// Cast a vote for an option index (0 = first option, 1 = second, …).
+    /// Voting is open to participants during the Open phase until the deadline.
+    pub fn vote(env: Env, voter: Address, option_index: u32) {
         voter.require_auth();
 
         let state: PactState = env.storage().instance().get(&DataKey::Pact).unwrap();
-        assert!(state.status == PactStatus::Active, "pact not active");
-        assert!(
-            env.ledger().timestamp() <= state.deadline,
-            "voting deadline passed"
-        );
+        assert!(state.status == PactStatus::Open, "pact not open");
+        assert!(env.ledger().timestamp() <= state.deadline, "deadline passed");
+        assert!(option_index < state.options_count, "invalid option");
         assert!(state.resolution_mode != ResolutionMode::Judge, "use judge_resolve");
-        assert!(voter != candidate, "cannot vote for yourself");
 
-        let participants: Map<Address, i128> = env
-            .storage()
-            .instance()
-            .get(&DataKey::Participants)
-            .unwrap();
-        assert!(
-            participants.contains_key(voter.clone()),
-            "voter not a participant"
-        );
-        assert!(
-            participants.contains_key(candidate.clone()),
-            "candidate not a participant"
-        );
+        let participants: Map<Address, i128> = env.storage().instance().get(&DataKey::Participants).unwrap();
+        assert!(participants.contains_key(voter.clone()), "not a participant");
 
-        let mut votes: Map<Address, Address> =
-            env.storage().instance().get(&DataKey::Votes).unwrap();
+        let mut votes: Map<Address, u32> = env.storage().instance().get(&DataKey::Votes).unwrap();
         assert!(!votes.contains_key(voter.clone()), "already voted");
 
-        let mut vote_count: Map<Address, u32> =
-            env.storage().instance().get(&DataKey::VoteCount).unwrap();
-
-        let current = vote_count.get(candidate.clone()).unwrap_or(0);
-        vote_count.set(candidate.clone(), current + 1);
-        votes.set(voter.clone(), candidate);
+        let mut vote_count: Map<u32, u32> = env.storage().instance().get(&DataKey::VoteCount).unwrap();
+        let current = vote_count.get(option_index).unwrap_or(0);
+        vote_count.set(option_index, current + 1);
+        votes.set(voter, option_index);
 
         env.storage().instance().set(&DataKey::Votes, &votes);
-        env.storage()
-            .instance()
-            .set(&DataKey::VoteCount, &vote_count);
+        env.storage().instance().set(&DataKey::VoteCount, &vote_count);
 
-        // Try to resolve after every vote (majority can resolve before everyone votes;
-        // unanimity and other modes also handled in _try_resolve)
+        // Attempt early resolution on every vote
         Self::_try_resolve(&env);
     }
 
-    /// Judge resolution (Judge mode only). Judge picks the winner.
-    pub fn judge_resolve(env: Env, judge: Address, winner: Address) {
+    /// Judge resolution: judge picks the winning option index directly.
+    /// Can be called any time while pact is Open (no deadline constraint for judge).
+    pub fn judge_resolve(env: Env, judge: Address, winning_option: u32) {
         judge.require_auth();
 
         let mut state: PactState = env.storage().instance().get(&DataKey::Pact).unwrap();
-        assert!(state.status == PactStatus::Active, "pact not active");
-        assert!(
-            state.resolution_mode == ResolutionMode::Judge,
-            "not judge mode"
-        );
+        assert!(state.status == PactStatus::Open, "pact not open");
+        assert!(state.resolution_mode == ResolutionMode::Judge, "not judge mode");
         assert!(state.judge == Some(judge), "not the judge");
+        assert!(winning_option < state.options_count, "invalid option");
 
-        let participants: Map<Address, i128> = env
-            .storage()
-            .instance()
-            .get(&DataKey::Participants)
-            .unwrap();
-        assert!(
-            participants.contains_key(winner.clone()),
-            "winner not a participant"
-        );
-
-        state.winner = Some(winner.clone());
+        state.winning_option = Some(winning_option);
         state.status = PactStatus::Resolved;
         env.storage().instance().set(&DataKey::Pact, &state);
 
-        Self::_payout(&env, &winner, state.total_staked, &state.usdc_token, &state.treasury);
+        Self::_payout_winners(&env, winning_option);
     }
 
-    /// Trigger resolution after deadline passes (anyone can call).
+    /// Trigger resolution after deadline. Anyone can call.
+    /// For MAJORITY: pays the option with most votes (if it has >50%).
+    /// For UNANIMITY: pays if all votes are for the same option.
+    /// If no winner is determinable, refunds everyone.
     pub fn resolve(env: Env) {
         let state: PactState = env.storage().instance().get(&DataKey::Pact).unwrap();
-        assert!(state.status == PactStatus::Active, "pact not active");
-        assert!(
-            env.ledger().timestamp() > state.deadline,
-            "deadline not reached yet"
-        );
+        assert!(state.status == PactStatus::Open, "pact not open");
+        assert!(env.ledger().timestamp() > state.deadline, "deadline not reached");
         assert!(state.resolution_mode != ResolutionMode::Judge, "use judge_resolve");
 
-        Self::_try_resolve(&env);
+        let resolved = Self::_try_resolve(&env);
+        if !resolved {
+            // No winner — refund everyone
+            Self::_refund_all(&env);
+        }
     }
 
-    /// Refund all participants (Unanimity mode only, if 48h timeout reached with no consensus).
+    /// Emergency refund (callable only after deadline if pact is still Open).
     pub fn refund(env: Env) {
+        let state: PactState = env.storage().instance().get(&DataKey::Pact).unwrap();
+        assert!(state.status == PactStatus::Open, "pact not open");
+        assert!(env.ledger().timestamp() > state.deadline, "deadline not reached");
+
+        Self::_refund_all(&env);
+    }
+
+    // ── Views ────────────────────────────────────────────────────────────────
+
+    pub fn get_pact(env: Env) -> PactState {
+        env.storage().instance().get(&DataKey::Pact).unwrap()
+    }
+
+    pub fn get_participants(env: Env) -> Map<Address, i128> {
+        env.storage().instance().get(&DataKey::Participants).unwrap()
+    }
+
+    pub fn get_votes(env: Env) -> Map<Address, u32> {
+        env.storage().instance().get(&DataKey::Votes).unwrap()
+    }
+
+    pub fn get_vote_count(env: Env) -> Map<u32, u32> {
+        env.storage().instance().get(&DataKey::VoteCount).unwrap()
+    }
+
+    // ── Internal ─────────────────────────────────────────────────────────────
+
+    fn _join_internal(env: &Env, participant: Address, stake_amount: i128, usdc_token: &Address) {
+        let token_client = token::Client::new(env, usdc_token);
+        token_client.transfer(&participant, &env.current_contract_address(), &stake_amount);
+
+        let mut participants: Map<Address, i128> = env.storage().instance().get(&DataKey::Participants).unwrap();
+        participants.set(participant, stake_amount);
+
         let mut state: PactState = env.storage().instance().get(&DataKey::Pact).unwrap();
-        assert!(state.status == PactStatus::Active, "pact not active");
-        assert!(
-            state.resolution_mode == ResolutionMode::Unanimity,
-            "only unanimity mode supports auto-refund"
-        );
-        assert!(
-            env.ledger().timestamp() > state.deadline + UNANIMITY_TIMEOUT_SECS,
-            "unanimity timeout not reached"
-        );
+        state.total_staked += stake_amount;
 
-        let participants: Map<Address, i128> = env
-            .storage()
-            .instance()
-            .get(&DataKey::Participants)
-            .unwrap();
+        env.storage().instance().set(&DataKey::Participants, &participants);
+        env.storage().instance().set(&DataKey::Pact, &state);
+    }
 
-        let token_client = token::Client::new(&env, &state.usdc_token);
+    /// Returns true if resolution happened, false if no winner yet.
+    fn _try_resolve(env: &Env) -> bool {
+        let mut state: PactState = env.storage().instance().get(&DataKey::Pact).unwrap();
+        let vote_count: Map<u32, u32> = env.storage().instance().get(&DataKey::VoteCount).unwrap();
+        let participants: Map<Address, i128> = env.storage().instance().get(&DataKey::Participants).unwrap();
+        let votes: Map<Address, u32> = env.storage().instance().get(&DataKey::Votes).unwrap();
+
+        let participant_count = participants.len() as u32;
+        let votes_cast = votes.len() as u32;
+
+        match state.resolution_mode {
+            ResolutionMode::Majority => {
+                let threshold = participant_count / 2 + 1;
+                let mut best_option: Option<u32> = None;
+                let mut best_count: u32 = 0;
+
+                for i in 0..state.options_count {
+                    let count = vote_count.get(i).unwrap_or(0);
+                    if count > best_count {
+                        best_count = count;
+                        best_option = Some(i);
+                    }
+                }
+
+                if let Some(opt) = best_option {
+                    if best_count >= threshold {
+                        state.winning_option = Some(opt);
+                        state.status = PactStatus::Resolved;
+                        env.storage().instance().set(&DataKey::Pact, &state);
+                        Self::_payout_winners(env, opt);
+                        return true;
+                    }
+                }
+                false
+            }
+
+            ResolutionMode::Unanimity => {
+                if votes_cast == participant_count && participant_count > 0 {
+                    // Check if all votes are for the same option
+                    let mut unanimity_option: Option<u32> = None;
+                    let mut unanimous = true;
+
+                    for (_voter, opt) in votes.iter() {
+                        match unanimity_option {
+                            None => unanimity_option = Some(opt),
+                            Some(first) => {
+                                if first != opt {
+                                    unanimous = false;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+
+                    if unanimous {
+                        if let Some(opt) = unanimity_option {
+                            state.winning_option = Some(opt);
+                            state.status = PactStatus::Resolved;
+                            env.storage().instance().set(&DataKey::Pact, &state);
+                            Self::_payout_winners(env, opt);
+                            return true;
+                        }
+                    }
+                }
+                false
+            }
+
+            ResolutionMode::Judge => false,
+        }
+    }
+
+    /// Pay out participants who voted for the winning option.
+    /// Winners split the total pot (minus fee). If nobody voted for the winning
+    /// option (judge mode edge case), refund everyone.
+    fn _payout_winners(env: &Env, winning_option: u32) {
+        let state: PactState = env.storage().instance().get(&DataKey::Pact).unwrap();
+        let votes: Map<Address, u32> = env.storage().instance().get(&DataKey::Votes).unwrap();
+        let participants: Map<Address, i128> = env.storage().instance().get(&DataKey::Participants).unwrap();
+
+        // Collect winners — everyone who voted for winning_option
+        // In judge mode (no votes cast) winners = all participants
+        let mut winners: Vec<Address> = Vec::new(env);
+
+        if votes.is_empty() {
+            // No votes cast — judge picked an outcome but nobody voted
+            // Just refund everyone
+            Self::_refund_all(env);
+            return;
+        }
+
+        for (voter, opt) in votes.iter() {
+            if opt == winning_option {
+                winners.push_back(voter);
+            }
+        }
+
+        if winners.is_empty() {
+            // Nobody voted for the winning option — refund everyone
+            Self::_refund_all(env);
+            return;
+        }
+
+        let total = state.total_staked;
+        let fee = total * FEE_BPS / 10_000;
+        let payout_pool = total - fee;
+        let winner_count = winners.len() as i128;
+        let per_winner = payout_pool / winner_count;
+
+        let token_client = token::Client::new(env, &state.usdc_token);
+        let contract_addr = env.current_contract_address();
+
+        // Pay fee
+        token_client.transfer(&contract_addr, &state.treasury, &fee);
+
+        // Pay each winner
+        for winner in winners.iter() {
+            token_client.transfer(&contract_addr, &winner, &per_winner);
+        }
+
+        // Refund participants who didn't vote (they abstained — return their stake)
+        for (participant, stake) in participants.iter() {
+            if !votes.contains_key(participant.clone()) {
+                token_client.transfer(&contract_addr, &participant, &stake);
+            }
+        }
+    }
+
+    fn _refund_all(env: &Env) {
+        let mut state: PactState = env.storage().instance().get(&DataKey::Pact).unwrap();
+        let participants: Map<Address, i128> = env.storage().instance().get(&DataKey::Participants).unwrap();
+
+        let token_client = token::Client::new(env, &state.usdc_token);
         let contract_addr = env.current_contract_address();
 
         for (addr, amount) in participants.iter() {
@@ -304,108 +376,6 @@ impl PactChainContract {
 
         state.status = PactStatus::Refunded;
         env.storage().instance().set(&DataKey::Pact, &state);
-    }
-
-    // ── Views ─────────────────────────────────────────────────────────────────
-
-    pub fn get_pact(env: Env) -> PactState {
-        env.storage().instance().get(&DataKey::Pact).unwrap()
-    }
-
-    pub fn get_participants(env: Env) -> Map<Address, i128> {
-        env.storage()
-            .instance()
-            .get(&DataKey::Participants)
-            .unwrap()
-    }
-
-    pub fn get_votes(env: Env) -> Map<Address, Address> {
-        env.storage().instance().get(&DataKey::Votes).unwrap()
-    }
-
-    pub fn get_vote_count(env: Env) -> Map<Address, u32> {
-        env.storage().instance().get(&DataKey::VoteCount).unwrap()
-    }
-
-    // ── Internal ─────────────────────────────────────────────────────────────
-
-    fn _try_resolve(env: &Env) {
-        let mut state: PactState = env.storage().instance().get(&DataKey::Pact).unwrap();
-        let vote_count: Map<Address, u32> =
-            env.storage().instance().get(&DataKey::VoteCount).unwrap();
-        let participants: Map<Address, i128> =
-            env.storage().instance().get(&DataKey::Participants).unwrap();
-        let votes: Map<Address, Address> =
-            env.storage().instance().get(&DataKey::Votes).unwrap();
-
-        let participant_count = participants.len() as u32;
-        let votes_cast = votes.len() as u32;
-
-        match state.resolution_mode {
-            ResolutionMode::Majority => {
-                let threshold = participant_count / 2 + 1;
-                let mut winner: Option<Address> = None;
-                let mut max_votes: u32 = 0;
-
-                for (addr, count) in vote_count.iter() {
-                    if count > max_votes {
-                        max_votes = count;
-                        winner = Some(addr);
-                    }
-                }
-
-                if let Some(w) = winner {
-                    if max_votes >= threshold {
-                        state.winner = Some(w.clone());
-                        state.status = PactStatus::Resolved;
-                        env.storage().instance().set(&DataKey::Pact, &state);
-                        Self::_payout(env, &w, state.total_staked, &state.usdc_token, &state.treasury);
-                    }
-                    // else: no majority yet — wait for more votes or deadline
-                }
-            }
-            ResolutionMode::Unanimity => {
-                if votes_cast == participant_count {
-                    // Check if all votes go to the same candidate
-                    let mut all_same = true;
-                    let mut first_candidate: Option<Address> = None;
-
-                    for (_voter, candidate) in votes.iter() {
-                        match &first_candidate {
-                            None => first_candidate = Some(candidate),
-                            Some(fc) => {
-                                if *fc != candidate {
-                                    all_same = false;
-                                    break;
-                                }
-                            }
-                        }
-                    }
-
-                    if all_same {
-                        if let Some(w) = first_candidate {
-                            state.winner = Some(w.clone());
-                            state.status = PactStatus::Resolved;
-                            env.storage().instance().set(&DataKey::Pact, &state);
-                            Self::_payout(env, &w, state.total_staked, &state.usdc_token, &state.treasury);
-                        }
-                    }
-                    // else: wait for unanimity timeout → refund()
-                }
-            }
-            ResolutionMode::Judge => { /* handled by judge_resolve */ }
-        }
-    }
-
-    fn _payout(env: &Env, winner: &Address, total: i128, usdc_token: &Address, treasury: &Address) {
-        let fee = total * FEE_BPS / 10_000;
-        let payout = total - fee;
-
-        let token_client = token::Client::new(env, usdc_token);
-        let contract_addr = env.current_contract_address();
-
-        token_client.transfer(&contract_addr, treasury, &fee);
-        token_client.transfer(&contract_addr, winner, &payout);
     }
 }
 
@@ -419,7 +389,7 @@ mod tests {
     use soroban_sdk::{
         testutils::{Address as _, Ledger},
         token::{Client as TokenClient, StellarAssetClient},
-        Env, String,
+        Env,
     };
 
     fn setup() -> (Env, Address, Address, Address, Address, Address) {
@@ -432,11 +402,9 @@ mod tests {
         let bob = Address::generate(&env);
         let treasury = Address::generate(&env);
 
-        // Create mock USDC token
         let usdc_id = env.register_stellar_asset_contract_v2(admin.clone());
         let usdc = usdc_id.address();
 
-        // Mint USDC to participants
         let asset_admin = StellarAssetClient::new(&env, &usdc);
         asset_admin.mint(&creator, &10_000_0000000i128);
         asset_admin.mint(&alice, &10_000_0000000i128);
@@ -445,308 +413,97 @@ mod tests {
         (env, creator, alice, bob, treasury, usdc)
     }
 
-    fn deploy_pact(
-        env: &Env,
-        creator: &Address,
-        treasury: &Address,
-        usdc: &Address,
-        mode: ResolutionMode,
-        judge: Option<Address>,
-    ) -> Address {
-        let contract_id = env.register_contract(None, PactChainContract);
-        let client = PactChainContractClient::new(env, &contract_id);
-
+    fn deploy(env: &Env, creator: &Address, treasury: &Address, usdc: &Address, mode: ResolutionMode, judge: Option<Address>) -> Address {
+        let id = env.register_contract(None, PactChainContract);
+        let client = PactChainContractClient::new(env, &id);
         let now = env.ledger().timestamp();
-        client.initialize(
-            creator,
-            &String::from_str(env, "Test Pact"),
-            &String::from_str(env, "Who finishes first?"),
-            &100_0000000i128, // 100 USDC
-            &5u32,
-            &(now + 3600), // 1 hour deadline
-            &mode,
-            &judge,
-            usdc,
-            treasury,
-        );
-
-        contract_id
+        client.initialize(creator, &100_0000000i128, &5u32, &(now + 3600), &mode, &judge, &2u32, usdc, treasury);
+        id
     }
 
     #[test]
-    fn test_majority_vote_full_flow() {
+    fn test_majority_yes_wins() {
         let (env, creator, alice, bob, treasury, usdc) = setup();
-        let contract_id = deploy_pact(
-            &env,
-            &creator,
-            &treasury,
-            &usdc,
-            ResolutionMode::Majority,
-            None,
-        );
+        let contract_id = deploy(&env, &creator, &treasury, &usdc, ResolutionMode::Majority, None);
         let client = PactChainContractClient::new(&env, &contract_id);
         let token = TokenClient::new(&env, &usdc);
 
-        // Join
+        // creator auto-joined; alice and bob join
         client.join(&alice);
         client.join(&bob);
 
-        // Lock
-        client.lock(&creator);
-
-        let state = client.get_pact();
-        assert!(state.status == PactStatus::Active);
-
-        // Vote: both vote for alice → alice wins
-        client.vote(&bob, &alice);
-        // alice votes for bob → tie, no majority
-        client.vote(&alice, &bob);
-
-        // No majority yet (1 each) — advance past deadline and resolve
-        env.ledger().with_mut(|l| l.timestamp += 7200);
-        client.resolve();
-
-        // Still no majority winner (1 each), so status stays Active or unresolved
-        // In a real test we'd need more voters — let's test with alice winning via majority
-        // Re-test: 3 participants, 2 vote for alice
-        let (env2, creator2, alice2, bob2, treasury2, usdc2) = setup();
-        let carol = Address::generate(&env2);
-        let asset_admin = StellarAssetClient::new(&env2, &usdc2);
-        asset_admin.mint(&carol, &10_000_0000000i128);
-
-        let contract_id2 = deploy_pact(
-            &env2,
-            &creator2,
-            &treasury2,
-            &usdc2,
-            ResolutionMode::Majority,
-            None,
-        );
-        let client2 = PactChainContractClient::new(&env2, &contract_id2);
-        let token2 = TokenClient::new(&env2, &usdc2);
-
-        client2.join(&alice2);
-        client2.join(&bob2);
-        client2.join(&carol);
-        client2.lock(&creator2);
-
-        let alice_before = token2.balance(&alice2);
-        let treasury_before = token2.balance(&treasury2);
-
-        // bob and carol vote for alice → majority (2/3)
-        client2.vote(&bob2, &alice2);
-        client2.vote(&carol, &alice2);
-
-        // Should auto-resolve after all-minus-one voters cast for same
-        // alice still hasn't voted, but 2/3 threshold (>50%) reached
-        let state2 = client2.get_pact();
-        assert!(state2.status == PactStatus::Resolved, "should be resolved");
-        assert!(state2.winner == Some(alice2.clone()));
-
-        let total = 3 * 100_0000000i128;
-        let fee = total * 200 / 10_000;
-        let payout = total - fee;
-
-        // alice_before is post-stake balance; payout includes her stake back + winnings
-        assert_eq!(token2.balance(&alice2), alice_before + payout);
-        assert_eq!(token2.balance(&treasury2), treasury_before + fee);
-    }
-
-    #[test]
-    fn test_judge_resolution() {
-        let (env, creator, alice, bob, treasury, usdc) = setup();
-        let judge = Address::generate(&env);
-
-        let contract_id = deploy_pact(
-            &env,
-            &creator,
-            &treasury,
-            &usdc,
-            ResolutionMode::Judge,
-            Some(judge.clone()),
-        );
-        let client = PactChainContractClient::new(&env, &contract_id);
-        let token = TokenClient::new(&env, &usdc);
-
-        client.join(&alice);
-        client.join(&bob);
-        client.lock(&creator);
-
-        // alice_before captured after join — alice already staked 100 USDC
         let alice_before = token.balance(&alice);
 
-        client.judge_resolve(&judge, &alice);
+        // creator=Yes(0), alice=Yes(0), bob=No(1) → Yes wins 2/3 → majority (need >50%)
+        client.vote(&creator, &0u32);
+        client.vote(&alice, &0u32);
+        // majority reached (2 of 3 > 50%), resolves immediately
 
         let state = client.get_pact();
         assert!(state.status == PactStatus::Resolved);
-        assert!(state.winner == Some(alice.clone()));
+        assert!(state.winning_option == Some(0u32));
 
-        let total = 2 * 100_0000000i128;
+        // alice and creator voted Yes → split the pot minus fee
+        // bob voted No → loser
+        let total = 3 * 100_0000000i128;
         let fee = total * 200 / 10_000;
-        let payout = total - fee;
-        // alice_before is post-stake balance; she receives full payout (stake returned + winnings)
-        assert_eq!(token.balance(&alice), alice_before + payout);
+        let pool = total - fee;
+        let per_winner = pool / 2; // creator + alice
+        assert_eq!(token.balance(&alice), alice_before + per_winner);
     }
 
     #[test]
-    fn test_unanimity_refund() {
+    fn test_unanimity_refund_on_no_consensus() {
         let (env, creator, alice, bob, treasury, usdc) = setup();
-
-        let contract_id = deploy_pact(
-            &env,
-            &creator,
-            &treasury,
-            &usdc,
-            ResolutionMode::Unanimity,
-            None,
-        );
+        let contract_id = deploy(&env, &creator, &treasury, &usdc, ResolutionMode::Unanimity, None);
         let client = PactChainContractClient::new(&env, &contract_id);
         let token = TokenClient::new(&env, &usdc);
 
         client.join(&alice);
-        client.join(&bob);
-        client.lock(&creator);
-
-        // They disagree: alice→bob, bob→alice (no unanimity)
-        client.vote(&alice, &bob);
-        client.vote(&bob, &alice);
-
-        // Advance past deadline + 48h timeout
-        env.ledger().with_mut(|l| l.timestamp += 3600 + UNANIMITY_TIMEOUT_SECS + 1);
 
         let alice_before = token.balance(&alice);
-        let bob_before = token.balance(&bob);
+        let creator_before = token.balance(&creator);
 
-        client.refund();
+        // creator=Yes, alice=No → no unanimity → refund
+        client.vote(&creator, &0u32);
+        client.vote(&alice, &1u32);
+
+        // All votes cast, not unanimous
+        env.ledger().with_mut(|l| l.timestamp += 7200);
+        client.resolve();
 
         let state = client.get_pact();
         assert!(state.status == PactStatus::Refunded);
         assert_eq!(token.balance(&alice), alice_before + 100_0000000i128);
-        assert_eq!(token.balance(&bob), bob_before + 100_0000000i128);
+        assert_eq!(token.balance(&creator), creator_before + 100_0000000i128);
     }
 
     #[test]
-    fn test_unanimity_resolves_when_all_agree() {
+    fn test_judge_resolves_yes() {
         let (env, creator, alice, bob, treasury, usdc) = setup();
-        let carol = Address::generate(&env);
-        let asset_admin = StellarAssetClient::new(&env, &usdc);
-        asset_admin.mint(&carol, &10_000_0000000i128);
-
-        let contract_id = deploy_pact(
-            &env,
-            &creator,
-            &treasury,
-            &usdc,
-            ResolutionMode::Unanimity,
-            None,
-        );
+        let judge = Address::generate(&env);
+        let contract_id = deploy(&env, &creator, &treasury, &usdc, ResolutionMode::Judge, Some(judge.clone()));
         let client = PactChainContractClient::new(&env, &contract_id);
         let token = TokenClient::new(&env, &usdc);
 
         client.join(&alice);
-        client.join(&bob);
-        client.join(&carol);
-        client.lock(&creator);
 
-        // All three vote for alice (unanimity)
-        client.vote(&bob, &alice);
-        client.vote(&carol, &alice);
-        // alice votes for bob, then we check — but wait, everyone needs to vote for SAME person
-        // alice votes for alice is forbidden (self-vote)
-        // So we need alice to vote for someone else — we test with bob & carol voting alice,
-        // alice voting alice is forbidden, so let's have alice vote for bob
-        // That breaks unanimity. Let's properly test: all 3 vote for carol.
-        // Reset by testing three-way agreement on carol.
-    }
+        // both vote Yes (informational in judge mode)
+        client.vote(&creator, &0u32);
+        client.vote(&alice, &0u32);
 
-    #[test]
-    fn test_unanimity_three_way_agree() {
-        let (env, creator, alice, bob, treasury, usdc) = setup();
-        let carol = Address::generate(&env);
-        let asset_admin = StellarAssetClient::new(&env, &usdc);
-        asset_admin.mint(&carol, &10_000_0000000i128);
+        let alice_before = token.balance(&alice);
+        let treasury_before = token.balance(&treasury);
 
-        let contract_id = deploy_pact(
-            &env,
-            &creator,
-            &treasury,
-            &usdc,
-            ResolutionMode::Unanimity,
-            None,
-        );
-        let client = PactChainContractClient::new(&env, &contract_id);
-        let token = TokenClient::new(&env, &usdc);
+        // judge picks Yes (option 0) as winner
+        client.judge_resolve(&judge, &0u32);
 
-        client.join(&alice);
-        client.join(&bob);
-        client.join(&carol);
-        client.lock(&creator);
-
-        let carol_before = token.balance(&carol);
-
-        // alice and bob vote for carol; carol votes for alice
-        // → no unanimity (carol breaks it)
-        // Instead: alice → bob, bob → alice, carol → alice: no unanimity (2 for alice, 1 for alice actually)
-        // Let's do: alice→carol, bob→carol, carol: can't vote for herself → vote for alice
-        // That's 2 carol, 1 alice — no unanimity
-        // Real unanimity: alice→bob, bob→alice is 2-way, can't get unanimity with 3 if self-vote blocked
-        // With 3 participants and self-vote forbidden: max unanimity on one person = n-1 votes
-        // True unanimity means everyone agrees on the SAME candidate; n participants, n votes, all for candidate X
-        // Self-vote IS blocked so with 3: alice can vote for bob, bob can vote for bob, carol can vote for bob
-        // Let's test: all vote for bob.
-        client.vote(&alice, &bob);
-        client.vote(&carol, &bob);
-        // bob can't vote for himself — so bob votes for alice; breaks unanimity
-        // Conclusion: unanimity with self-vote-blocked is only achievable with specific vote patterns
-        // Test: all vote for carol who has no restriction
-        // carol votes for alice (not self), alice votes for carol, bob votes for carol
         let state = client.get_pact();
-        // At this point: alice→bob, carol→bob = 2 for bob, not all voted, no resolution yet
-        assert!(state.status == PactStatus::Active);
-    }
+        assert!(state.status == PactStatus::Resolved);
+        assert!(state.winning_option == Some(0u32));
 
-    #[test]
-    #[should_panic(expected = "cannot vote for yourself")]
-    fn test_self_vote_rejected() {
-        let (env, creator, alice, bob, treasury, usdc) = setup();
-
-        let contract_id = deploy_pact(
-            &env,
-            &creator,
-            &treasury,
-            &usdc,
-            ResolutionMode::Majority,
-            None,
-        );
-        let client = PactChainContractClient::new(&env, &contract_id);
-
-        client.join(&alice);
-        client.join(&bob);
-        client.lock(&creator);
-
-        client.vote(&alice, &alice); // should panic
-    }
-
-    #[test]
-    #[should_panic(expected = "already voted")]
-    fn test_double_vote_rejected() {
-        let (env, creator, alice, bob, treasury, usdc) = setup();
-
-        let contract_id = deploy_pact(
-            &env,
-            &creator,
-            &treasury,
-            &usdc,
-            ResolutionMode::Majority,
-            None,
-        );
-        let client = PactChainContractClient::new(&env, &contract_id);
-
-        client.join(&alice);
-        client.join(&bob);
-        client.lock(&creator);
-
-        client.vote(&alice, &bob);
-        client.vote(&alice, &bob); // should panic
+        let total = 2 * 100_0000000i128;
+        let fee = total * 200 / 10_000;
+        assert_eq!(token.balance(&treasury), treasury_before + fee);
     }
 }

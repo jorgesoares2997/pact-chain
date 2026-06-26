@@ -64,13 +64,12 @@ function CreatePactForm() {
     try {
       const contractId = await deployAndInitializePact({
         creatorAddress: address!,
-        title: form.title,
-        description: form.description,
         stakeAmountStroops: BigInt(Math.round(parseFloat(form.stakeAmount) * 1e7)),
         maxParticipants: parseInt(form.maxParticipants),
         deadlineUnix,
         resolutionMode: form.mode,
         judge: form.judge || undefined,
+        optionsCount: voteOptions.length,
         usdcToken: process.env.NEXT_PUBLIC_USDC_TOKEN_ID ?? "",
         treasury: process.env.NEXT_PUBLIC_TREASURY_ADDRESS ?? "",
         signTransaction: signTx,

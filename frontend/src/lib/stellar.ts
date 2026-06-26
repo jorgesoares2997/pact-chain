@@ -16,7 +16,6 @@ import type { ResolutionMode } from "@/types/pact";
 export const NETWORK_PASSPHRASE = Networks.TESTNET;
 export const RPC_URL =
   process.env.NEXT_PUBLIC_STELLAR_RPC_URL ?? "https://soroban-testnet.stellar.org";
-export const CONTRACT_ID = process.env.NEXT_PUBLIC_CONTRACT_ID ?? "";
 export const WASM_HASH = process.env.NEXT_PUBLIC_CONTRACT_WASM_HASH ?? "";
 
 export const rpcServer = new SorobanRpc.Server(RPC_URL, { allowHttp: false });
@@ -54,15 +53,10 @@ export async function submitSigned(signedXdr: string) {
   for (let i = 0; i < 30; i++) {
     await sleep(1000);
     getResult = await rpcServer.getTransaction(sendResult.hash);
-    if (
-      getResult.status !== SorobanRpc.Api.GetTransactionStatus.NOT_FOUND
-    )
-      break;
+    if (getResult.status !== SorobanRpc.Api.GetTransactionStatus.NOT_FOUND) break;
   }
 
-  if (
-    getResult?.status !== SorobanRpc.Api.GetTransactionStatus.SUCCESS
-  ) {
+  if (getResult?.status !== SorobanRpc.Api.GetTransactionStatus.SUCCESS) {
     throw new Error("Transaction failed or timed out");
   }
 
@@ -81,24 +75,26 @@ export function i128Val(n: bigint) {
   return nativeToScVal(n, { type: "i128" });
 }
 
+export function u32Val(n: number) {
+  return nativeToScVal(n, { type: "u32" });
+}
+
 export interface DeployAndInitParams {
   creatorAddress: string;
-  title: string;
-  description: string;
   stakeAmountStroops: bigint;
   maxParticipants: number;
   deadlineUnix: number;
   resolutionMode: ResolutionMode;
   judge?: string;
+  optionsCount: number;      // number of vote options (2 = Yes/No)
   usdcToken: string;
   treasury: string;
   signTransaction: (xdr: string) => Promise<string>;
 }
 
-/** Derives the contract ID that Soroban will assign to a newly deployed instance. */
+/** Derives the contract ID Soroban assigns to a newly deployed instance. */
 function deriveContractId(sourceAddress: string, salt: Buffer): string {
   const networkId = hash(Buffer.from(NETWORK_PASSPHRASE));
-  const wasmHashBuf = Buffer.from(WASM_HASH, "hex");
 
   const preimage = xdr.HashIdPreimage.envelopeTypeContractId(
     new xdr.HashIdPreimageContractId({
@@ -121,21 +117,21 @@ function deriveContractId(sourceAddress: string, salt: Buffer): string {
 }
 
 /**
- * Deploys a fresh contract instance from NEXT_PUBLIC_CONTRACT_WASM_HASH,
- * then calls `initialize` on it. Returns the new contract's Stellar address.
+ * Deploys a new pact contract from WASM_HASH, then calls initialize.
+ * The creator is auto-joined (stakes USDC) inside initialize.
+ * Returns the new contract's Stellar address.
  */
 export async function deployAndInitializePact(
   params: DeployAndInitParams
 ): Promise<string> {
   const {
     creatorAddress,
-    title,
-    description,
     stakeAmountStroops,
     maxParticipants,
     deadlineUnix,
     resolutionMode,
     judge,
+    optionsCount,
     usdcToken,
     treasury,
     signTransaction,
@@ -143,11 +139,9 @@ export async function deployAndInitializePact(
 
   if (!WASM_HASH) throw new Error("NEXT_PUBLIC_CONTRACT_WASM_HASH is not set");
 
-  const salt = Buffer.from(
-    crypto.getRandomValues(new Uint8Array(32))
-  );
+  const salt = Buffer.from(crypto.getRandomValues(new Uint8Array(32)));
 
-  // --- Step 1: deploy contract instance ---
+  // Step 1: deploy contract instance
   const deployOp = Operation.createCustomContract({
     address: new Address(creatorAddress),
     wasmHash: Buffer.from(WASM_HASH, "hex"),
@@ -160,40 +154,33 @@ export async function deployAndInitializePact(
 
   const contractId = deriveContractId(creatorAddress, salt);
 
-  // --- Step 2: call initialize ---
-  const resolutionModeScVal = (() => {
-    switch (resolutionMode) {
-      case "MAJORITY":
-        return xdr.ScVal.scvVec([nativeToScVal("Majority", { type: "symbol" })]);
-      case "JUDGE":
-        return xdr.ScVal.scvVec([
-          nativeToScVal("Judge", { type: "symbol" }),
-          new Address(judge!).toScVal(),
-        ]);
-      case "UNANIMITY":
-        return xdr.ScVal.scvVec([nativeToScVal("Unanimity", { type: "symbol" })]);
-    }
-  })();
-
-  // Option<Address>: Some(addr) = raw address ScVal, None = Void
+  // Step 2: call initialize (creator auto-joined inside the contract)
   const judgeScVal =
     resolutionMode === "JUDGE" && judge
       ? new Address(judge).toScVal()
       : xdr.ScVal.scvVoid();
 
+  const resolutionModeScVal = xdr.ScVal.scvVec([
+    nativeToScVal(
+      resolutionMode === "MAJORITY" ? "Majority"
+        : resolutionMode === "JUDGE" ? "Judge"
+        : "Unanimity",
+      { type: "symbol" }
+    ),
+  ]);
+
   const contract = new Contract(contractId);
   const initOp = contract.call(
     "initialize",
-    new Address(creatorAddress).toScVal(),
-    nativeToScVal(title, { type: "string" }),
-    nativeToScVal(description, { type: "string" }),
-    i128Val(stakeAmountStroops),
-    nativeToScVal(maxParticipants, { type: "u32" }),
-    nativeToScVal(BigInt(deadlineUnix), { type: "u64" }),
-    resolutionModeScVal,
-    judgeScVal,
-    new Address(usdcToken).toScVal(),
-    new Address(treasury).toScVal()
+    new Address(creatorAddress).toScVal(),  // creator
+    i128Val(stakeAmountStroops),             // stake_amount
+    u32Val(maxParticipants),                 // max_participants
+    nativeToScVal(BigInt(deadlineUnix), { type: "u64" }), // deadline
+    resolutionModeScVal,                     // resolution_mode
+    judgeScVal,                              // judge (Option<Address>)
+    u32Val(optionsCount),                    // options_count
+    new Address(usdcToken).toScVal(),        // usdc_token
+    new Address(treasury).toScVal()          // treasury
   );
 
   const initXdr = await buildAndSimulate(creatorAddress, initOp);
@@ -203,7 +190,7 @@ export async function deployAndInitializePact(
   return contractId;
 }
 
-// ── Generic single-call helper ───────────────────────────────────────────────
+// ── Generic invoke helper ────────────────────────────────────────────────────
 
 async function invokeContract(
   contractId: string,
@@ -221,69 +208,51 @@ async function invokeContract(
 
 // ── Contract actions ─────────────────────────────────────────────────────────
 
-/** participant calls join — transfers stake_amount USDC to contract */
+/** Join a pact — stakes USDC on-chain. Creator is auto-joined at deploy. */
 export async function joinPact(
   contractId: string,
   participantAddress: string,
   signTransaction: (xdr: string) => Promise<string>
 ): Promise<void> {
   await invokeContract(
-    contractId,
-    "join",
+    contractId, "join",
     [new Address(participantAddress).toScVal()],
-    participantAddress,
-    signTransaction
+    participantAddress, signTransaction
   );
 }
 
-/** creator locks the pact — requires ≥2 on-chain participants */
-export async function lockPact(
-  contractId: string,
-  creatorAddress: string,
-  signTransaction: (xdr: string) => Promise<string>
-): Promise<void> {
-  await invokeContract(
-    contractId,
-    "lock",
-    [new Address(creatorAddress).toScVal()],
-    creatorAddress,
-    signTransaction
-  );
-}
-
-/** voter casts a vote for a candidate wallet */
+/**
+ * Vote on an option index: 0 = first option (Yes), 1 = second (No), etc.
+ * For MAJORITY and UNANIMITY modes only — judge mode uses judgeResolvePact.
+ */
 export async function votePact(
   contractId: string,
   voterAddress: string,
-  candidateAddress: string,
+  optionIndex: number,
   signTransaction: (xdr: string) => Promise<string>
 ): Promise<void> {
   await invokeContract(
-    contractId,
-    "vote",
-    [new Address(voterAddress).toScVal(), new Address(candidateAddress).toScVal()],
-    voterAddress,
-    signTransaction
+    contractId, "vote",
+    [new Address(voterAddress).toScVal(), u32Val(optionIndex)],
+    voterAddress, signTransaction
   );
 }
 
-/** judge picks the winner wallet (JUDGE mode only) */
+/** Judge picks the winning option index (JUDGE mode only). */
 export async function judgeResolvePact(
   contractId: string,
   judgeAddress: string,
-  winnerAddress: string,
+  winningOptionIndex: number,
   signTransaction: (xdr: string) => Promise<string>
 ): Promise<void> {
   await invokeContract(
-    contractId,
-    "judge_resolve",
-    [new Address(judgeAddress).toScVal(), new Address(winnerAddress).toScVal()],
-    judgeAddress,
-    signTransaction
+    contractId, "judge_resolve",
+    [new Address(judgeAddress).toScVal(), u32Val(winningOptionIndex)],
+    judgeAddress, signTransaction
   );
 }
 
-/** anyone triggers resolution after deadline (MAJORITY / UNANIMITY) */
+/** Trigger resolution after deadline (MAJORITY / UNANIMITY). */
 export async function resolvePact(
   contractId: string,
   callerAddress: string,
@@ -292,7 +261,7 @@ export async function resolvePact(
   await invokeContract(contractId, "resolve", [], callerAddress, signTransaction);
 }
 
-/** trigger refund — UNANIMITY mode after 48h timeout with no consensus */
+/** Refund all participants (after deadline, no consensus). */
 export async function refundPact(
   contractId: string,
   callerAddress: string,

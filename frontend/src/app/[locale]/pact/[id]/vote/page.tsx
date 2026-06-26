@@ -8,6 +8,7 @@ import ConnectWalletGate from "@/components/ConnectWalletGate";
 import Spinner from "@/components/Spinner";
 import { useWallet } from "@/context/WalletContext";
 import { api } from "@/lib/api";
+import { votePact } from "@/lib/stellar";
 import type { Pact } from "@/types/pact";
 import { Button } from "@/components/ui/Button";
 import { Check, CheckCheck } from "lucide-react";
@@ -24,7 +25,7 @@ function VoteInner() {
   const t = useTranslations("Vote");
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
-  const { address } = useWallet();
+  const { address, signTx } = useWallet();
 
   const [pact, setPact] = useState<Pact | null>(null);
   const [alreadyVoted, setAlreadyVoted] = useState(false);
@@ -43,10 +44,15 @@ function VoteInner() {
     if (!selected || !pact || alreadyVoted || !address) return;
     setSubmitting(true);
     try {
-      // Record vote in backend (off-chain until contract supports option-based voting)
+      // Vote on-chain: pass option index (0=first option, 1=second, …)
+      const optionIndex = options.indexOf(selected);
+      await votePact(pact.contractId, address, optionIndex, signTx);
+
+      // Record in backend for tally display
       await api.logInteraction(address, "voted", id, pact.title, { vote: selected });
+
       setAlreadyVoted(true);
-      toast.success("Vote recorded!");
+      toast.success("Vote recorded on-chain!");
       router.push(`/pact/${id}`);
     } catch (e) {
       toast.error((e as Error).message);

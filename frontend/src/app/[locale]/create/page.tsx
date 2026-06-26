@@ -90,9 +90,9 @@ function CreatePactForm() {
       });
 
       await api.logInteraction(address!, "pact_created", result.id, form.title);
-      
+
       toast.success(t("success"));
-      router.push(`/pact/${result.id}?invite=${result.code}`);
+      router.push(`/pact/${result.id}`);
     } catch (err) {
       toast.error((err as Error).message ?? "Failed to create pact");
     } finally {

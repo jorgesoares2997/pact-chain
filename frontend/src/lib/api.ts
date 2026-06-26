@@ -64,12 +64,27 @@ export const api = {
     request<Interaction[]>(`/api/interactions?pactId=${pactId}&limit=100`),
 
   getParticipants: (pactId: string) =>
-    request<Interaction[]>(`/api/interactions?pactId=${pactId}&limit=100`)
-      .then((list) => list.filter((i) => i.action === "joined_pact").map((i) => i.wallet)),
+    request<{ wallet: string }[]>(`/api/pacts/${pactId}/participants`)
+      .then((list) => list.map((p) => p.wallet))
+      .catch(() =>
+        // fallback to interactions if new endpoint not yet migrated
+        request<Interaction[]>(`/api/interactions?pactId=${pactId}&limit=100`)
+          .then((list) => list.filter((i) => i.action === "joined_pact").map((i) => i.wallet))
+      ),
 
   hasVoted: (pactId: string, wallet: string) =>
-    request<Interaction[]>(`/api/interactions?pactId=${pactId}&wallet=${wallet}&limit=10`)
-      .then((list) => list.some((i) => i.action === "voted")),
+    request<{ voted: boolean }>(`/api/pacts/${pactId}/votes/check?wallet=${encodeURIComponent(wallet)}`)
+      .then((r) => r.voted)
+      .catch(() =>
+        request<Interaction[]>(`/api/interactions?pactId=${pactId}&wallet=${wallet}&limit=10`)
+          .then((list) => list.some((i) => i.action === "voted"))
+      ),
+
+  addParticipant: (pactId: string, wallet: string, stakeAmount: number, txHash?: string) =>
+    request<{ ok: boolean }>(`/api/pacts/${pactId}/participants`, {
+      method: "POST",
+      body: JSON.stringify({ wallet, txHash }),
+    }),
 
   logInteraction: (
     wallet: string,

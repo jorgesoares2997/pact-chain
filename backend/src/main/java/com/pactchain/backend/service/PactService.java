@@ -110,10 +110,13 @@ public class PactService {
             p.setTxHash(txHash);
             participantRepo.save(p);
         }
-        // Update total_locked_value
+        // Update total_locked_value; auto-activate when ≥2 participants
         var pact = getPact(pactId);
         long count = participantRepo.countByPactId(pactId);
         pact.setTotalLockedValue(count * pact.getStakeAmount());
+        if (pact.getStatus() == Pact.Status.OPEN && count >= 2) {
+            pact.setStatus(Pact.Status.ACTIVE);
+        }
         pactRepo.save(pact);
 
         // Ensure a result row exists for this wallet (for MAJORITY/UNANIMITY voting)

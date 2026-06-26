@@ -1,14 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams, useSearchParams } from "next/navigation";
+import { useParams } from "next/navigation";
 import Link from "next/link";
 import toast from "react-hot-toast";
 import { useTranslations } from "next-intl";
 import Spinner from "@/components/Spinner";
 import Countdown from "@/components/Countdown";
 import { api } from "@/lib/api";
-import { joinPact, lockPact, resolvePact, judgeResolvePact, refundPact } from "@/lib/stellar";
+import { joinPact, resolvePact, judgeResolvePact, refundPact } from "@/lib/stellar";
 import { useWallet } from "@/context/WalletContext";
 import type { Pact, Interaction } from "@/types/pact";
 import { Button } from "@/components/ui/Button";
@@ -18,7 +18,7 @@ import {
   X as XIcon, Trophy, CheckCheck, Gavel, Users, Vote,
 } from "lucide-react";
 
-// ── Vote tally helpers (off-chain, for display) ─────────────────────────────
+// ── Vote tally helpers ───────────────────────────────────────────────────────
 
 function tallyVotes(votes: Interaction[]): Record<string, number> {
   const tally: Record<string, number> = {};
@@ -51,7 +51,6 @@ function unanimityWallet(tally: Record<string, number>, total: number): string |
 export default function PactDashboard() {
   const t = useTranslations("Dashboard");
   const { id } = useParams<{ id: string }>();
-  const searchParams = useSearchParams();
   const { address, signTx } = useWallet();
 
   const [pact, setPact] = useState<Pact | null>(null);
@@ -60,8 +59,6 @@ export default function PactDashboard() {
   const [alreadyVoted, setAlreadyVoted] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
-
-  const inviteCode = searchParams.get("invite");
 
   function refreshAll() {
     api.getPact(id).then(setPact).catch((e: Error) => setError(e.message));
@@ -88,24 +85,25 @@ export default function PactDashboard() {
   const stakeUsdc = (pact.stakeAmount / 1e7).toFixed(2);
   const nowSec = Math.floor(Date.now() / 1000);
   const deadlinePassed = nowSec > pact.deadline;
+  const isLive = pact.status === "OPEN" || pact.status === "ACTIVE";
 
-  // Winner is a wallet address stored in pact.winner
+  const isParticipant = !!address && participants.includes(address);
+  const isCreator = !!address && address === pact.creator;
   const isWinner = pact.status === "RESOLVED" && !!address && pact.winner === address;
 
-  // Who can trigger resolution
   const canResolve =
-    pact.status === "ACTIVE" &&
+    isLive &&
     deadlinePassed &&
-    (pact.resolutionMode !== "JUDGE" ? address === pact.creator : address === pact.judge);
+    (pact.resolutionMode !== "JUDGE" ? isCreator : address === pact.judge);
 
-  const origin = typeof window !== "undefined" ? window.location.origin : "";
-  const inviteUrl = inviteCode ? `${origin}/join/${inviteCode}` : null;
-  const shareUrl = inviteUrl ?? `${origin}/pact/${id}`;
+  const shareUrl = typeof window !== "undefined"
+    ? `${window.location.origin}/pact/${id}`
+    : `/pact/${id}`;
   const shareText = `Join my commitment pact "${pact.title}" on PactChain — stake ${stakeUsdc} USDC 🤝`;
 
   const statusColor: Record<string, string> = {
-    OPEN: "text-emerald-500 bg-emerald-500/10 border-emerald-200 dark:border-emerald-900",
-    ACTIVE: "text-amber-500 bg-amber-500/10 border-amber-200 dark:border-amber-900",
+    OPEN:     "text-emerald-500 bg-emerald-500/10 border-emerald-200 dark:border-emerald-900",
+    ACTIVE:   "text-amber-500 bg-amber-500/10 border-amber-200 dark:border-amber-900",
     RESOLVED: "text-primary bg-primary/10 border-primary/20",
     REFUNDED: "text-muted-foreground bg-muted border-border",
   };
@@ -118,6 +116,7 @@ export default function PactDashboard() {
 
   return (
     <main className="max-w-xl mx-auto px-4 py-8 sm:py-12">
+
       {/* Header */}
       <div className="flex items-start justify-between mb-8 gap-4">
         <div>
@@ -126,7 +125,7 @@ export default function PactDashboard() {
             {t(`status.${pact.status}`)}
           </span>
         </div>
-        {!deadlinePassed && (pact.status === "ACTIVE" || pact.status === "OPEN") && (
+        {isLive && !deadlinePassed && (
           <div className="text-right shrink-0 bg-muted/50 p-3 rounded-lg border border-border">
             <div className="text-xs font-medium text-muted-foreground mb-1 uppercase tracking-wider">{t("deadline")}</div>
             <Countdown deadline={pact.deadline} />
@@ -145,35 +144,34 @@ export default function PactDashboard() {
         <Stat label={t("participants")} value={`${participants.length} / ${pact.maxParticipants}`} />
       </div>
 
-      {/* Resolution */}
-      {canResolve && (
-        <ResolutionSection
-          pact={pact}
-          votes={votes}
-          participants={participants}
-          signTx={signTx}
-          onResolved={refreshAll}
-        />
-      )}
+      {/* ── Actions ─────────────────────────────────────────────────── */}
 
-      {/* Winner banner */}
+      {/* Winner: claim reward */}
       {isWinner && (
         <div className="mb-8 flex flex-col items-center gap-3 rounded-2xl border border-primary/30 bg-primary/5 p-6 text-center">
           <Trophy className="h-10 w-10 text-primary" />
           <p className="text-base font-semibold text-foreground">You won this pact!</p>
-          <p className="text-xs text-muted-foreground">
-            Your {stakeUsdc} USDC reward was paid out automatically on-chain.
+          <p className="text-xs text-muted-foreground mb-2">
+            Your reward was distributed on-chain at resolution.
           </p>
+          <Button size="lg" className="w-full" onClick={() => toast.success("Reward already claimed on-chain at resolution!")}>
+            Reward Claimed ✓
+          </Button>
         </div>
       )}
 
-      {/* Resolved — non-winners */}
+      {/* Loser: after resolution */}
       {pact.status === "RESOLVED" && !isWinner && pact.winner && (
         <div className="mb-8 rounded-2xl border border-border bg-muted/30 p-5 text-center">
           <p className="text-sm font-semibold text-foreground mb-1">Pact resolved</p>
-          <p className="text-xs text-muted-foreground font-mono">
+          <p className="text-xs text-muted-foreground font-mono mb-3">
             Winner: {pact.winner.slice(0, 8)}…{pact.winner.slice(-6)}
           </p>
+          {isParticipant && (
+            <Button size="sm" variant="outline" disabled className="w-full opacity-50">
+              Not a winner this time
+            </Button>
+          )}
         </div>
       )}
 
@@ -185,8 +183,19 @@ export default function PactDashboard() {
         </div>
       )}
 
-      {/* Vote button */}
-      {pact.status === "ACTIVE" && address && !deadlinePassed && (
+      {/* Resolution section */}
+      {canResolve && (
+        <ResolutionSection
+          pact={pact}
+          votes={votes}
+          participants={participants}
+          signTx={signTx}
+          onResolved={refreshAll}
+        />
+      )}
+
+      {/* Vote button — participant, not yet voted, deadline not passed */}
+      {isLive && isParticipant && !deadlinePassed && (
         alreadyVoted ? (
           <div className="mb-6 flex items-center gap-2 rounded-xl border border-primary/30 bg-primary/5 px-4 py-3 text-sm text-muted-foreground">
             <CheckCheck className="h-4 w-4 text-primary shrink-0" />
@@ -202,25 +211,17 @@ export default function PactDashboard() {
         )
       )}
 
-      {/* Join button — shown to any connected wallet that hasn't joined yet */}
-      {pact.status === "OPEN" && address && !participants.includes(address) && (
-        <JoinFromPactButton
-          pact={pact}
-          onJoined={refreshAll}
-          signTx={signTx}
-        />
+      {/* Join button — connected wallet, not yet a participant, pact live */}
+      {isLive && address && !isParticipant && !deadlinePassed && (
+        <JoinFromPactButton pact={pact} onJoined={refreshAll} signTx={signTx} />
       )}
 
-      {/* Lock pact */}
-      {pact.status === "OPEN" && address === pact.creator && (
-        <LockButton
-          pactId={id}
-          contractId={pact.contractId}
-          signTx={signTx}
-          onLocked={refreshAll}
-          t={t}
-          participantCount={participants.length}
-        />
+      {/* Waiting for deadline */}
+      {isLive && deadlinePassed && !canResolve && (
+        <div className="mb-6 rounded-xl border border-amber-400/30 bg-amber-500/5 px-4 py-3 text-sm text-amber-600 text-center">
+          Deadline passed — waiting for resolution by{" "}
+          {pact.resolutionMode === "JUDGE" ? "the judge" : "the creator"}.
+        </div>
       )}
 
       {/* Votes cast */}
@@ -265,9 +266,7 @@ export default function PactDashboard() {
       <Card className="border-dashed bg-muted/30">
         <CardContent className="pt-5 pb-5">
           <div className="text-sm font-semibold text-foreground mb-1">{t("shareTitle")}</div>
-          <p className="text-xs text-muted-foreground mb-4">
-            {inviteUrl ? t("shareSubtitleInvite") : t("shareSubtitle")}
-          </p>
+          <p className="text-xs text-muted-foreground mb-4">{t("shareSubtitle")}</p>
           <div className="flex items-center gap-2 mb-4">
             <code className="text-xs bg-background border border-border rounded-md px-3 py-2 flex-1 truncate font-mono text-primary">
               {shareUrl}
@@ -278,9 +277,24 @@ export default function PactDashboard() {
             </Button>
           </div>
           <div className="grid grid-cols-3 gap-2">
-            <ShareButton onClick={() => window.open(`https://wa.me/?text=${encodeURIComponent(`${shareText} ${shareUrl}`)}`, "_blank")} icon={<MessageCircle className="h-4 w-4" />} label="WhatsApp" className="text-[#25D366] border-[#25D366]/30 hover:bg-[#25D366]/10 hover:border-[#25D366]/60" />
-            <ShareButton onClick={() => window.open(`https://t.me/share/url?url=${encodeURIComponent(shareUrl)}&text=${encodeURIComponent(shareText)}`, "_blank")} icon={<Send className="h-4 w-4" />} label="Telegram" className="text-[#2AABEE] border-[#2AABEE]/30 hover:bg-[#2AABEE]/10 hover:border-[#2AABEE]/60" />
-            <ShareButton onClick={() => window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(`${shareText}\n${shareUrl}`)}`, "_blank")} icon={<XIcon className="h-4 w-4" />} label="X / Twitter" className="text-foreground border-border hover:bg-muted" />
+            <ShareButton
+              onClick={() => window.open(`https://wa.me/?text=${encodeURIComponent(`${shareText} ${shareUrl}`)}`, "_blank")}
+              icon={<MessageCircle className="h-4 w-4" />}
+              label="WhatsApp"
+              className="text-[#25D366] border-[#25D366]/30 hover:bg-[#25D366]/10 hover:border-[#25D366]/60"
+            />
+            <ShareButton
+              onClick={() => window.open(`https://t.me/share/url?url=${encodeURIComponent(shareUrl)}&text=${encodeURIComponent(shareText)}`, "_blank")}
+              icon={<Send className="h-4 w-4" />}
+              label="Telegram"
+              className="text-[#2AABEE] border-[#2AABEE]/30 hover:bg-[#2AABEE]/10 hover:border-[#2AABEE]/60"
+            />
+            <ShareButton
+              onClick={() => window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(`${shareText}\n${shareUrl}`)}`, "_blank")}
+              icon={<XIcon className="h-4 w-4" />}
+              label="X / Twitter"
+              className="text-foreground border-border hover:bg-muted"
+            />
           </div>
         </CardContent>
       </Card>
@@ -322,9 +336,9 @@ function ResolutionSection({
   }
 
   const modeIcon = {
-    MAJORITY: <Users className="h-5 w-5 text-primary" />,
+    MAJORITY:  <Users className="h-5 w-5 text-primary" />,
     UNANIMITY: <Vote className="h-5 w-5 text-primary" />,
-    JUDGE: <Gavel className="h-5 w-5 text-primary" />,
+    JUDGE:     <Gavel className="h-5 w-5 text-primary" />,
   }[pact.resolutionMode];
 
   async function resolve() {
@@ -347,10 +361,8 @@ function ResolutionSection({
         toast.success("No consensus — pact refunded on-chain.");
 
       } else {
-        // MAJORITY or UNANIMITY — call resolve() on-chain; contract auto-pays winner
         setStep("contract");
         await resolvePact(pact.contractId, address, signTx);
-        // Determine winner from tally and sync to backend
         const winner = previewWinner!;
         setStep("backend");
         await api.updateWinner(pact.id, winner);
@@ -369,7 +381,7 @@ function ResolutionSection({
   const stepLabel = () => {
     if (!loading) return noConsensus ? "Refund pact (no consensus)" : "Confirm resolution";
     if (step === "contract") return "Signing on-chain…";
-    if (step === "backend") return "Syncing backend…";
+    if (step === "backend") return "Syncing…";
     return "Resolving…";
   };
 
@@ -378,11 +390,11 @@ function ResolutionSection({
       <div className="flex items-center gap-2 mb-4">
         {modeIcon}
         <span className="text-sm font-semibold text-foreground">
-          Resolve pact — {pact.resolutionMode}
+          Liquidate pact — {pact.resolutionMode}
         </span>
       </div>
 
-      {/* Vote tally */}
+      {/* Vote tally bars */}
       {totalVoters > 0 ? (
         <div className="mb-4 flex flex-col gap-2">
           {Object.entries(tally).map(([wallet, count]) => {
@@ -401,32 +413,30 @@ function ResolutionSection({
               </div>
             );
           })}
-          <p className="text-xs text-muted-foreground mt-1">{totalVoters} total votes</p>
+          <p className="text-xs text-muted-foreground mt-1">{totalVoters} total vote{totalVoters !== 1 ? "s" : ""}</p>
         </div>
       ) : (
         <p className="text-sm text-muted-foreground mb-4">No votes cast yet.</p>
       )}
 
-      {/* JUDGE: pick winner from participants */}
+      {/* JUDGE: pick winner from participant list */}
       {pact.resolutionMode === "JUDGE" && (
         <div className="mb-4 flex flex-col gap-2">
           <p className="text-xs text-muted-foreground">Pick the winning participant:</p>
-          <div className="flex flex-col gap-2">
-            {participants.map((w) => (
-              <button
-                key={w}
-                type="button"
-                onClick={() => setJudgeChoice(w)}
-                className={`flex items-center gap-3 px-4 py-3 rounded-xl border text-sm font-mono transition-all ${
-                  judgeChoice === w
-                    ? "border-primary bg-primary text-primary-foreground"
-                    : "border-border bg-card hover:bg-muted text-foreground"
-                }`}
-              >
-                <span className="truncate">{w.slice(0, 8)}…{w.slice(-6)}</span>
-              </button>
-            ))}
-          </div>
+          {participants.map((w) => (
+            <button
+              key={w}
+              type="button"
+              onClick={() => setJudgeChoice(w)}
+              className={`flex items-center gap-3 px-4 py-3 rounded-xl border text-sm font-mono transition-all ${
+                judgeChoice === w
+                  ? "border-primary bg-primary text-primary-foreground"
+                  : "border-border bg-card hover:bg-muted text-foreground"
+              }`}
+            >
+              <span className="truncate">{w.slice(0, 8)}…{w.slice(-6)}</span>
+            </button>
+          ))}
         </div>
       )}
 
@@ -447,7 +457,7 @@ function ResolutionSection({
 
       <Button
         onClick={resolve}
-        disabled={loading || (pact.resolutionMode === "JUDGE" && !judgeChoice) || totalVoters === 0}
+        disabled={loading || (pact.resolutionMode === "JUDGE" && !judgeChoice)}
         size="sm"
         className="w-full"
       >
@@ -481,6 +491,7 @@ function JoinFromPactButton({
       setStep("contract");
       await joinPact(pact.contractId, address, signTx);
       setStep("backend");
+      await api.addParticipant(pact.id, address, pact.stakeAmount);
       await api.logInteraction(address, "joined_pact", pact.id, pact.title);
       toast.success(`Joined! ${stakeUsdc} USDC staked on-chain.`);
       onJoined();
@@ -507,74 +518,20 @@ function JoinFromPactButton({
   );
 }
 
-// ── Lock button ─────────────────────────────────────────────────────────────
-
-function LockButton({
-  pactId,
-  contractId,
-  signTx,
-  onLocked,
-  t,
-  participantCount,
-}: {
-  pactId: string;
-  contractId: string;
-  signTx: (xdr: string) => Promise<string>;
-  onLocked: () => void;
-  t: ReturnType<typeof useTranslations<"Dashboard">>;
-  participantCount: number;
-}) {
-  const { address } = useWallet();
-  const [loading, setLoading] = useState(false);
-  const [step, setStep] = useState<"idle" | "contract" | "backend">("idle");
-  const canLock = participantCount >= 2;
-  const needed = 2 - participantCount;
-
-  async function handleLock() {
-    if (!address || !canLock) return;
-    setLoading(true);
-    try {
-      setStep("contract");
-      await lockPact(contractId, address, signTx);
-      setStep("backend");
-      await api.updatePactStatus(pactId, "ACTIVE");
-      toast.success(t("lockedSuccess"));
-      onLocked();
-    } catch (e) {
-      toast.error((e as Error).message);
-    } finally {
-      setLoading(false);
-      setStep("idle");
-    }
-  }
-
-  const lockLabel = () => {
-    if (!loading) return t("lockPact");
-    if (step === "contract") return "Locking on-chain…";
-    if (step === "backend") return "Syncing…";
-    return t("locking");
-  };
-
-  return (
-    <div className="mb-6 w-full">
-      <Button onClick={handleLock} disabled={loading || !canLock} variant="default" size="lg" className="w-full">
-        {loading && <Spinner size="sm" />}
-        {lockLabel()}
-      </Button>
-      {!canLock && (
-        <p className="text-xs text-muted-foreground mt-2 text-center">
-          Need {needed} more participant{needed !== 1 ? "s" : ""} to lock ({participantCount}/2 joined).
-        </p>
-      )}
-    </div>
-  );
-}
-
 // ── Tiny components ─────────────────────────────────────────────────────────
 
-function ShareButton({ onClick, icon, label, className }: { onClick: () => void; icon: React.ReactNode; label: string; className: string }) {
+function ShareButton({ onClick, icon, label, className }: {
+  onClick: () => void;
+  icon: React.ReactNode;
+  label: string;
+  className: string;
+}) {
   return (
-    <button type="button" onClick={onClick} className={`flex items-center justify-center gap-2 rounded-lg border px-3 py-2.5 text-xs font-semibold transition-all ${className}`}>
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex items-center justify-center gap-2 rounded-lg border px-3 py-2.5 text-xs font-semibold transition-all ${className}`}
+    >
       {icon}{label}
     </button>
   );

@@ -63,22 +63,29 @@ export const api = {
   getPactVotes: (pactId: string) =>
     request<Interaction[]>(`/api/interactions?pactId=${pactId}&limit=100`),
 
-  getParticipants: (pactId: string) =>
-    request<{ wallet: string }[]>(`/api/pacts/${pactId}/participants`)
-      .then((list) => list.map((p) => p.wallet))
-      .catch(() =>
-        // fallback to interactions if new endpoint not yet migrated
-        request<Interaction[]>(`/api/interactions?pactId=${pactId}&limit=100`)
-          .then((list) => list.filter((i) => i.action === "joined_pact").map((i) => i.wallet))
-      ),
+  getParticipants: async (pactId: string): Promise<string[]> => {
+    // Always merge both sources: new pact_participants table + legacy wallet_interactions.
+    // This ensures pacts created before the schema upgrade still show correct participants.
+    const [structured, interactions] = await Promise.all([
+      request<{ wallet: string }[]>(`/api/pacts/${pactId}/participants`).catch(() => [] as { wallet: string }[]),
+      request<Interaction[]>(`/api/interactions?pactId=${pactId}&limit=100`).catch(() => [] as Interaction[]),
+    ]);
+    const fromStructured = structured.map((p) => p.wallet);
+    const fromInteractions = interactions
+      .filter((i) => i.action === "joined_pact")
+      .map((i) => i.wallet);
+    // deduplicate
+    return [...new Set([...fromStructured, ...fromInteractions])];
+  },
 
-  hasVoted: (pactId: string, wallet: string) =>
-    request<{ voted: boolean }>(`/api/pacts/${pactId}/votes/check?wallet=${encodeURIComponent(wallet)}`)
-      .then((r) => r.voted)
-      .catch(() =>
-        request<Interaction[]>(`/api/interactions?pactId=${pactId}&wallet=${wallet}&limit=10`)
-          .then((list) => list.some((i) => i.action === "voted"))
-      ),
+  hasVoted: async (pactId: string, wallet: string): Promise<boolean> => {
+    // Check both sources so pre-schema-upgrade votes are detected.
+    const [structuredResult, interactions] = await Promise.all([
+      request<{ voted: boolean }>(`/api/pacts/${pactId}/votes/check?wallet=${encodeURIComponent(wallet)}`).catch(() => ({ voted: false })),
+      request<Interaction[]>(`/api/interactions?pactId=${pactId}&wallet=${wallet}&limit=10`).catch(() => [] as Interaction[]),
+    ]);
+    return structuredResult.voted || interactions.some((i) => i.action === "voted");
+  },
 
   addParticipant: (pactId: string, wallet: string, stakeAmount: number, txHash?: string) =>
     request<{ ok: boolean }>(`/api/pacts/${pactId}/participants`, {

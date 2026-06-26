@@ -8,7 +8,7 @@ import { useTranslations } from "next-intl";
 import Spinner from "@/components/Spinner";
 import Countdown from "@/components/Countdown";
 import { api } from "@/lib/api";
-import { joinPact, resolvePact, judgeResolvePact, refundPact } from "@/lib/stellar";
+import { joinPact, lockPact, resolvePact, judgeResolvePact, refundPact } from "@/lib/stellar";
 import { useWallet } from "@/context/WalletContext";
 import type { Pact, Interaction } from "@/types/pact";
 import { Button } from "@/components/ui/Button";
@@ -194,8 +194,8 @@ export default function PactDashboard() {
         />
       )}
 
-      {/* Vote button — participant, not yet voted, deadline not passed */}
-      {isLive && isParticipant && !deadlinePassed && (
+      {/* Vote button — only after pact is ACTIVE (locked on-chain) */}
+      {pact.status === "ACTIVE" && isParticipant && !deadlinePassed && (
         alreadyVoted ? (
           <div className="mb-6 flex items-center gap-2 rounded-xl border border-primary/30 bg-primary/5 px-4 py-3 text-sm text-muted-foreground">
             <CheckCheck className="h-4 w-4 text-primary shrink-0" />
@@ -211,9 +211,33 @@ export default function PactDashboard() {
         )
       )}
 
-      {/* Join button — connected wallet, not yet a participant, pact live */}
-      {isLive && address && !isParticipant && !deadlinePassed && (
+      {/* Join button — only on OPEN pacts (ACTIVE = locked on-chain, no new joins) */}
+      {pact.status === "OPEN" && address && !isParticipant && !deadlinePassed && (
         <JoinFromPactButton pact={pact} onJoined={refreshAll} signTx={signTx} />
+      )}
+
+      {/* Start voting — creator locks the pact once ≥2 participants have joined */}
+      {pact.status === "OPEN" && isCreator && participants.length >= 2 && (
+        <StartVotingButton
+          pactId={id}
+          contractId={pact.contractId}
+          signTx={signTx}
+          onStarted={refreshAll}
+        />
+      )}
+
+      {/* Waiting for more participants */}
+      {pact.status === "OPEN" && isCreator && participants.length < 2 && (
+        <div className="mb-6 rounded-xl border border-border bg-muted/30 px-4 py-3 text-sm text-muted-foreground text-center">
+          Waiting for at least 1 more participant to join before voting can start.
+        </div>
+      )}
+
+      {/* ACTIVE but not a participant — closed for new joins */}
+      {pact.status === "ACTIVE" && address && !isParticipant && !deadlinePassed && (
+        <div className="mb-6 rounded-xl border border-border bg-muted/30 px-4 py-3 text-sm text-muted-foreground text-center">
+          This pact is already in progress — new participants can no longer join.
+        </div>
       )}
 
       {/* Waiting for deadline */}
@@ -514,6 +538,45 @@ function JoinFromPactButton({
     <Button onClick={handleJoin} disabled={loading} variant="default" size="lg" className="w-full mb-4">
       {loading && <Spinner size="sm" />}
       {label()}
+    </Button>
+  );
+}
+
+// ── Start voting (lock) button ───────────────────────────────────────────────
+
+function StartVotingButton({
+  pactId,
+  contractId,
+  signTx,
+  onStarted,
+}: {
+  pactId: string;
+  contractId: string;
+  signTx: (xdr: string) => Promise<string>;
+  onStarted: () => void;
+}) {
+  const { address } = useWallet();
+  const [loading, setLoading] = useState(false);
+
+  async function handleStart() {
+    if (!address) return;
+    setLoading(true);
+    try {
+      await lockPact(contractId, address, signTx);
+      await api.updatePactStatus(pactId, "ACTIVE");
+      toast.success("Voting started!");
+      onStarted();
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <Button onClick={handleStart} disabled={loading} size="lg" className="w-full mb-4">
+      {loading && <Spinner size="sm" />}
+      {loading ? "Starting voting…" : "Start voting"}
     </Button>
   );
 }

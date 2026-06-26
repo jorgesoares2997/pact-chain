@@ -8,7 +8,7 @@ import { useTranslations } from "next-intl";
 import Spinner from "@/components/Spinner";
 import Countdown from "@/components/Countdown";
 import { api } from "@/lib/api";
-import { joinPact, lockPact, resolvePact, judgeResolvePact, refundPact } from "@/lib/stellar";
+import { joinPact, lockPact } from "@/lib/stellar";
 import { useWallet } from "@/context/WalletContext";
 import type { Pact, Interaction } from "@/types/pact";
 import { Button } from "@/components/ui/Button";
@@ -256,11 +256,11 @@ export default function PactDashboard() {
           </h2>
           <div className="flex flex-col gap-2">
             {votes.map((v) => {
-              const candidate = v.meta
+              const option = v.meta
                 ? (() => { try { return (JSON.parse(v.meta) as { vote?: string }).vote ?? null; } catch { return null; } })()
                 : null;
               const isMe = !!address && v.wallet === address;
-              const isWinningVote = pact.status === "RESOLVED" && candidate === pact.winner;
+              const isWinningVote = pact.status === "RESOLVED" && option === pact.winner;
               return (
                 <div
                   key={v.id}
@@ -270,13 +270,14 @@ export default function PactDashboard() {
                 >
                   <span className="font-mono text-xs text-muted-foreground">
                     {isMe ? "You" : `${v.wallet.slice(0, 6)}…${v.wallet.slice(-4)}`}
-                    {isWinningVote && <span className="ml-1 text-primary">✓</span>}
                   </span>
-                  {candidate && (
-                    <span className={`ml-2 shrink-0 rounded-full border px-3 py-0.5 text-xs font-mono font-semibold ${
-                      isWinningVote ? "bg-primary text-primary-foreground border-primary" : "bg-primary/10 border-primary/20 text-primary"
+                  {option && (
+                    <span className={`ml-2 shrink-0 rounded-full border px-3 py-0.5 text-xs font-semibold ${
+                      isWinningVote
+                        ? "bg-primary text-primary-foreground border-primary"
+                        : "bg-primary/10 border-primary/20 text-primary"
                     }`}>
-                      {candidate.slice(0, 6)}…{candidate.slice(-4)}
+                      {option}{isWinningVote ? " ✓" : ""}
                     </span>
                   )}
                 </div>
@@ -344,7 +345,6 @@ function ResolutionSection({
   const { address } = useWallet();
   const [judgeChoice, setJudgeChoice] = useState<string>("");
   const [loading, setLoading] = useState(false);
-  const [step, setStep] = useState<"idle" | "contract" | "backend">("idle");
 
   const tally = tallyVotes(votes);
   const totalVoters = votes.length;
@@ -365,32 +365,28 @@ function ResolutionSection({
     JUDGE:     <Gavel className="h-5 w-5 text-primary" />,
   }[pact.resolutionMode];
 
+  // Options for judge to pick from
+  const voteOptionLabels = pact.voteOptions
+    ? pact.voteOptions.split(",").map((o) => o.trim()).filter(Boolean)
+    : ["Yes", "No"];
+
   async function resolve() {
     if (!address) return;
     setLoading(true);
     try {
       if (pact.resolutionMode === "JUDGE") {
-        if (!judgeChoice) { toast.error("Select the winner first."); return; }
-        setStep("contract");
-        await judgeResolvePact(pact.contractId, address, judgeChoice, signTx);
-        setStep("backend");
+        if (!judgeChoice) { toast.error("Select the winning outcome first."); return; }
         await api.updateWinner(pact.id, judgeChoice);
-        toast.success(`Resolved — winner: ${judgeChoice.slice(0, 8)}…`);
+        toast.success(`Pact resolved — "${judgeChoice}" wins!`);
 
       } else if (noConsensus) {
-        setStep("contract");
-        await refundPact(pact.contractId, address, signTx);
-        setStep("backend");
         await api.refundPact(pact.id);
-        toast.success("No consensus — pact refunded on-chain.");
+        toast.success("No consensus — pact marked as refunded.");
 
       } else {
-        setStep("contract");
-        await resolvePact(pact.contractId, address, signTx);
         const winner = previewWinner!;
-        setStep("backend");
         await api.updateWinner(pact.id, winner);
-        toast.success(`Resolved — winner: ${winner.slice(0, 8)}…`);
+        toast.success(`Pact resolved — "${winner}" wins!`);
       }
 
       onResolved();
@@ -398,14 +394,11 @@ function ResolutionSection({
       toast.error((e as Error).message);
     } finally {
       setLoading(false);
-      setStep("idle");
     }
   }
 
   const stepLabel = () => {
     if (!loading) return noConsensus ? "Refund pact (no consensus)" : "Confirm resolution";
-    if (step === "contract") return "Signing on-chain…";
-    if (step === "backend") return "Syncing…";
     return "Resolving…";
   };
 
@@ -443,22 +436,22 @@ function ResolutionSection({
         <p className="text-sm text-muted-foreground mb-4">No votes cast yet.</p>
       )}
 
-      {/* JUDGE: pick winner from participant list */}
+      {/* JUDGE: pick the winning outcome */}
       {pact.resolutionMode === "JUDGE" && (
         <div className="mb-4 flex flex-col gap-2">
-          <p className="text-xs text-muted-foreground">Pick the winning participant:</p>
-          {participants.map((w) => (
+          <p className="text-xs text-muted-foreground mb-1">Pick the winning outcome:</p>
+          {voteOptionLabels.map((option) => (
             <button
-              key={w}
+              key={option}
               type="button"
-              onClick={() => setJudgeChoice(w)}
-              className={`flex items-center gap-3 px-4 py-3 rounded-xl border text-sm font-mono transition-all ${
-                judgeChoice === w
+              onClick={() => setJudgeChoice(option)}
+              className={`flex items-center gap-3 px-4 py-3 rounded-xl border text-sm font-semibold transition-all ${
+                judgeChoice === option
                   ? "border-primary bg-primary text-primary-foreground"
                   : "border-border bg-card hover:bg-muted text-foreground"
               }`}
             >
-              <span className="truncate">{w.slice(0, 8)}…{w.slice(-6)}</span>
+              {option}
             </button>
           ))}
         </div>
@@ -471,7 +464,7 @@ function ResolutionSection({
             <span className="text-amber-600 font-semibold">No unanimity — pact will be refunded.</span>
           ) : previewWinner ? (
             <span className="text-foreground">
-              Outcome: <strong className="text-primary font-mono">{previewWinner.slice(0, 8)}…{previewWinner.slice(-6)}</strong> wins
+              Outcome: <strong className="text-primary">&ldquo;{previewWinner}&rdquo;</strong> wins
             </span>
           ) : (
             <span className="text-muted-foreground">No majority yet.</span>

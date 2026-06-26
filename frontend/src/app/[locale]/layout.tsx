@@ -37,12 +37,25 @@ export default async function RootLayout({
           >
             <WalletProvider>
               <Toaster
-                position="top-center"
+                position="bottom-left"
+                gutter={8}
                 toastOptions={{
+                  duration: 4000,
                   style: {
                     background: "var(--card)",
                     color: "var(--card-foreground)",
                     border: "1px solid var(--border)",
+                    borderRadius: "12px",
+                    fontSize: "14px",
+                    padding: "12px 16px",
+                    maxWidth: "360px",
+                  },
+                  success: {
+                    iconTheme: { primary: "var(--primary)", secondary: "var(--primary-foreground)" },
+                  },
+                  error: {
+                    duration: 6000,
+                    iconTheme: { primary: "#ef4444", secondary: "#fff" },
                   },
                 }}
               />

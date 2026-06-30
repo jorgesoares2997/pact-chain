@@ -41,4 +41,11 @@ public class CreatePactRequest {
 
     /** Vote option labels, e.g. ["Yes","No"]. Defaults to Yes/No if absent. */
     private List<String> voteOptions;
+
+    private Pact.PactType pactType;
+
+    private String successCriteria;
+
+    @Size(max = 200)
+    private String evidenceRequirements;
 }

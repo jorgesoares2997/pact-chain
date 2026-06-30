@@ -21,6 +21,7 @@
   },
   "Nav": {
     "newPact": "Novo Pacto",
+    "createPact": "Criar Pacto",
     "connectWallet": "Conectar Carteira",
     "connecting": "Conectando…",
     "disconnect": "Desconectar",
@@ -31,11 +32,29 @@
   },
   "Create": {
     "title": "Criar um Pacto",
+    "selectType": {
+      "title": "Que tipo de pacto?",
+      "subtitle": "Escolha o formato que melhor se encaixa no seu uso.",
+      "opinion": {
+        "title": "Pacto de Opinião",
+        "subtitle": "Decisão em grupo",
+        "desc": "O grupo vota no melhor resultado. Perfeito para escolhas subjetivas onde a maioria ou unanimidade decide.",
+        "examples": "Melhor design, votação da equipe, escolha do grupo",
+        "cta": "Criar Pacto de Opinião"
+      },
+      "commitment": {
+        "title": "Pacto de Compromisso",
+        "subtitle": "Responsabilidade pessoal",
+        "desc": "Defina uma meta antecipadamente. Os participantes se comprometem com USDC. Um juiz ou o grupo verifica se a meta foi cumprida.",
+        "examples": "Desafio de 30 dias, meta fitness, prazo de projeto",
+        "cta": "Criar Pacto de Compromisso"
+      }
+    },
     "labels": {
       "title": "Título",
       "description": "Descrição",
       "noDescription": "Sem descrição",
-      "stake": "Aposta por pessoa (USDC)",
+      "stake": "Compromisso por pessoa (USDC)",
       "maxParticipants": "Máximo de participantes",
       "deadlineDate": "Data limite",
       "deadlineTime": "Hora limite",
@@ -43,14 +62,20 @@
       "mode": "Modo de resolução",
       "judge": "Endereço Stellar do Juiz",
       "voteOptions": "Opções de voto",
-      "voteOptionsHint": "Defina como os participantes votam no resultado.",
-      "addOption": "+ Adicionar"
+      "voteOptionsHint": "Defina os resultados que os participantes votam.",
+      "addOption": "+ Adicionar",
+      "successCriteria": "Critérios de sucesso",
+      "evidenceRequirements": "Requisitos de evidência (opcional)"
     },
     "placeholders": {
       "title": "Quem vai terminar o desafio de 30 dias?",
+      "titleOpinion": "Qual opção é melhor?",
+      "titleCommitment": "Desafio de corrida de 30 dias",
       "description": "A que exatamente os participantes estão se comprometendo?",
       "judge": "G…",
-      "voteOption": "Opção personalizada…"
+      "voteOption": "Opção personalizada…",
+      "successCriteria": "Descreva exatamente como é completar este compromisso...",
+      "evidenceRequirements": "ex: captura de tela do GPS, commit no GitHub, foto de prova"
     },
     "modes": {
       "MAJORITY": {
@@ -59,7 +84,7 @@
       },
       "JUDGE": {
         "label": "Juiz Único",
-        "desc": "Um endereço designado decide o vencedor"
+        "desc": "Um endereço designado verifica o resultado"
       },
       "UNANIMITY": {
         "label": "Unanimidade",
@@ -70,7 +95,8 @@
       "titleRequired": "Título é obrigatório",
       "deadlineRequired": "Data limite é obrigatória",
       "judgeRequired": "Endereço do juiz é obrigatório",
-      "deadlineFuture": "O prazo deve ser no futuro"
+      "deadlineFuture": "O prazo deve ser no futuro",
+      "successCriteriaRequired": "Critérios de sucesso são obrigatórios para pactos de compromisso"
     },
     "deadline": {
       "hint": "Selecione um prazo rápido ou escolha uma data personalizada.",
@@ -83,7 +109,7 @@
     },
     "submit": "Criar Pacto",
     "submitting": "Criando…",
-    "success": "Pacto criado! Compartilhe o link de convite."
+    "success": "Pacto criado! Compartilhe o link."
   },
   "Join": {
     "invalidLink": "Link de convite inválido",

@@ -10,23 +10,121 @@ import Spinner from "@/components/Spinner";
 import { useWallet } from "@/context/WalletContext";
 import { api } from "@/lib/api";
 import { deployAndInitializePact } from "@/lib/stellar";
-import type { ResolutionMode } from "@/types/pact";
+import type { PactType, ResolutionMode } from "@/types/pact";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
+import { ArrowLeft, MessageSquare, Target } from "lucide-react";
 
 export default function CreatePactPage() {
   return (
     <ConnectWalletGate>
-      <CreatePactForm />
+      <CreatePactFlow />
     </ConnectWalletGate>
   );
 }
 
-function CreatePactForm() {
+type Step = "select" | "form";
+
+function CreatePactFlow() {
+  const [step, setStep] = useState<Step>("select");
+  const [pactType, setPactType] = useState<PactType>("OPINION");
+
+  if (step === "select") {
+    return <TypeSelectionScreen onSelect={(type) => { setPactType(type); setStep("form"); }} />;
+  }
+
+  return (
+    <CreatePactForm
+      pactType={pactType}
+      onBack={() => setStep("select")}
+    />
+  );
+}
+
+function TypeSelectionScreen({ onSelect }: { onSelect: (type: PactType) => void }) {
+  const t = useTranslations("Create");
+
+  return (
+    <main className="max-w-2xl mx-auto px-4 py-10 sm:py-16">
+      <div className="text-center mb-10">
+        <h1 className="text-3xl font-bold tracking-tight text-foreground mb-3">
+          {t("selectType.title")}
+        </h1>
+        <p className="text-muted-foreground text-base">
+          {t("selectType.subtitle")}
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+        {/* Opinion Pact */}
+        <button
+          onClick={() => onSelect("OPINION")}
+          className="group flex flex-col items-start gap-4 p-6 rounded-2xl border-2 border-border bg-card hover:border-primary hover:bg-primary/5 transition-all text-left"
+        >
+          <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
+            <MessageSquare className="h-6 w-6 text-primary" />
+          </div>
+          <div className="flex-1">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-lg font-bold text-foreground">
+                {t("selectType.opinion.title")}
+              </span>
+              <span className="text-xs font-semibold text-primary bg-primary/10 px-2 py-0.5 rounded-full border border-primary/20">
+                {t("selectType.opinion.subtitle")}
+              </span>
+            </div>
+            <p className="text-sm text-muted-foreground leading-relaxed mb-3">
+              {t("selectType.opinion.desc")}
+            </p>
+            <p className="text-xs text-muted-foreground/70 italic">
+              {t("selectType.opinion.examples")}
+            </p>
+          </div>
+          <span className="mt-auto inline-flex items-center justify-center w-full rounded-lg bg-primary text-primary-foreground text-sm font-semibold py-2.5 group-hover:bg-primary/90 transition-colors">
+            {t("selectType.opinion.cta")}
+          </span>
+        </button>
+
+        {/* Commitment Pact */}
+        <button
+          onClick={() => onSelect("COMMITMENT")}
+          className="group flex flex-col items-start gap-4 p-6 rounded-2xl border-2 border-border bg-card hover:border-amber-500 hover:bg-amber-500/5 transition-all text-left"
+        >
+          <div className="w-12 h-12 rounded-xl bg-amber-500/10 flex items-center justify-center group-hover:bg-amber-500/20 transition-colors">
+            <Target className="h-6 w-6 text-amber-500" />
+          </div>
+          <div className="flex-1">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-lg font-bold text-foreground">
+                {t("selectType.commitment.title")}
+              </span>
+              <span className="text-xs font-semibold text-amber-600 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20">
+                {t("selectType.commitment.subtitle")}
+              </span>
+            </div>
+            <p className="text-sm text-muted-foreground leading-relaxed mb-3">
+              {t("selectType.commitment.desc")}
+            </p>
+            <p className="text-xs text-muted-foreground/70 italic">
+              {t("selectType.commitment.examples")}
+            </p>
+          </div>
+          <span className="mt-auto inline-flex items-center justify-center w-full rounded-lg bg-amber-500 text-white text-sm font-semibold py-2.5 group-hover:bg-amber-600 transition-colors">
+            {t("selectType.commitment.cta")}
+          </span>
+        </button>
+      </div>
+    </main>
+  );
+}
+
+function CreatePactForm({ pactType, onBack }: { pactType: PactType; onBack: () => void }) {
   const t = useTranslations("Create");
   const { address, signTx } = useWallet();
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+
+  const isCommitment = pactType === "COMMITMENT";
 
   const [form, setForm] = useState({
     title: "",
@@ -35,8 +133,10 @@ function CreatePactForm() {
     maxParticipants: "5",
     deadlineDate: "",
     deadlineTime: "23:59",
-    mode: "MAJORITY" as ResolutionMode,
+    mode: (isCommitment ? "JUDGE" : "MAJORITY") as ResolutionMode,
     judge: "",
+    successCriteria: "",
+    evidenceRequirements: "",
   });
   const [skipDescription, setSkipDescription] = useState(false);
   const [voteOptions, setVoteOptions] = useState<string[]>(["Yes", "No"]);
@@ -52,6 +152,7 @@ function CreatePactForm() {
     if (!form.title.trim()) return toast.error(t("errors.titleRequired"));
     if (!form.deadlineDate) return toast.error(t("errors.deadlineRequired"));
     if (form.mode === "JUDGE" && !form.judge.trim()) return toast.error(t("errors.judgeRequired"));
+    if (isCommitment && !form.successCriteria.trim()) return toast.error(t("errors.successCriteriaRequired"));
 
     const deadlineUnix = Math.floor(
       new Date(`${form.deadlineDate}T${form.deadlineTime}:00`).getTime() / 1000
@@ -59,6 +160,8 @@ function CreatePactForm() {
     if (deadlineUnix <= Math.floor(Date.now() / 1000)) {
       return toast.error(t("errors.deadlineFuture"));
     }
+
+    const finalOptions = isCommitment ? ["Yes", "No"] : voteOptions;
 
     setLoading(true);
     try {
@@ -69,7 +172,7 @@ function CreatePactForm() {
         deadlineUnix,
         resolutionMode: form.mode,
         judge: form.judge || undefined,
-        optionsCount: voteOptions.length,
+        optionsCount: finalOptions.length,
         usdcToken: process.env.NEXT_PUBLIC_USDC_TOKEN_ID ?? "",
         treasury: process.env.NEXT_PUBLIC_TREASURY_ADDRESS ?? "",
         signTransaction: signTx,
@@ -85,7 +188,10 @@ function CreatePactForm() {
         deadline: deadlineUnix,
         resolutionMode: form.mode,
         judge: form.judge || undefined,
-        voteOptions,
+        voteOptions: finalOptions,
+        pactType,
+        successCriteria: isCommitment ? form.successCriteria : undefined,
+        evidenceRequirements: isCommitment && form.evidenceRequirements ? form.evidenceRequirements : undefined,
       });
 
       await api.logInteraction(address!, "pact_created", result.id, form.title);
@@ -100,17 +206,40 @@ function CreatePactForm() {
   }
 
   const modes: ResolutionMode[] = ["MAJORITY", "JUDGE", "UNANIMITY"];
+  const accentClass = isCommitment ? "text-amber-600" : "text-primary";
+  const badgeBg = isCommitment
+    ? "bg-amber-500/10 text-amber-600 border-amber-500/20"
+    : "bg-primary/10 text-primary border-primary/20";
 
   return (
     <main className="max-w-lg mx-auto px-4 py-8 sm:py-12">
       <div className="mb-8">
-        <h1 className="text-2xl font-bold tracking-tight text-foreground">{t("title")}</h1>
+        <button
+          type="button"
+          onClick={onBack}
+          className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mb-4"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Back
+        </button>
+        <div className="flex items-center gap-3">
+          <h1 className="text-2xl font-bold tracking-tight text-foreground">
+            {isCommitment
+              ? t("selectType.commitment.title")
+              : t("selectType.opinion.title")}
+          </h1>
+          <span className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${badgeBg}`}>
+            {isCommitment
+              ? t("selectType.commitment.subtitle")
+              : t("selectType.opinion.subtitle")}
+          </span>
+        </div>
       </div>
-      
+
       <form onSubmit={handleSubmit} className="flex flex-col gap-6">
         <Field label={t("labels.title")}>
           <Input
-            placeholder={t("placeholders.title")}
+            placeholder={isCommitment ? t("placeholders.titleCommitment") : t("placeholders.titleOpinion")}
             value={form.title}
             onChange={set("title")}
             maxLength={80}
@@ -146,6 +275,31 @@ function CreatePactForm() {
             />
           )}
         </div>
+
+        {/* Commitment-specific fields */}
+        {isCommitment && (
+          <>
+            <Field label={t("labels.successCriteria")}>
+              <textarea
+                className="flex min-h-[120px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 resize-none"
+                placeholder={t("placeholders.successCriteria")}
+                value={form.successCriteria}
+                onChange={set("successCriteria")}
+                maxLength={2000}
+                required
+              />
+            </Field>
+
+            <Field label={t("labels.evidenceRequirements")}>
+              <Input
+                placeholder={t("placeholders.evidenceRequirements")}
+                value={form.evidenceRequirements}
+                onChange={set("evidenceRequirements")}
+                maxLength={200}
+              />
+            </Field>
+          </>
+        )}
 
         <div className="grid grid-cols-2 gap-4">
           <Field label={t("labels.stake")}>
@@ -195,19 +349,22 @@ function CreatePactForm() {
           />
         )}
 
-        <VoteOptionsField
-          options={voteOptions}
-          setOptions={setVoteOptions}
-          customInput={customOptionInput}
-          setCustomInput={setCustomOptionInput}
-          t={t}
-        />
+        {/* Vote options: only for Opinion pacts */}
+        {!isCommitment && (
+          <VoteOptionsField
+            options={voteOptions}
+            setOptions={setVoteOptions}
+            customInput={customOptionInput}
+            setCustomInput={setCustomOptionInput}
+            t={t}
+          />
+        )}
 
         <Button
           type="submit"
           disabled={loading}
           size="lg"
-          className="mt-4 w-full"
+          className={`mt-4 w-full ${isCommitment ? "bg-amber-500 hover:bg-amber-600" : ""}`}
         >
           {loading && <Spinner size="sm" />}
           {loading ? t("submitting") : t("submit")}
@@ -241,6 +398,8 @@ function DeadlineField({
     deadlineTime: string;
     mode: ResolutionMode;
     judge: string;
+    successCriteria: string;
+    evidenceRequirements: string;
   }>>;
   t: ReturnType<typeof useTranslations<"Create">>;
 }) {
@@ -280,7 +439,6 @@ function DeadlineField({
         {t("labels.deadline")}
       </label>
 
-      {/* Preset pills */}
       <div className="grid grid-cols-3 gap-2">
         {presets.map((p) => (
           <button
@@ -298,9 +456,8 @@ function DeadlineField({
         ))}
       </div>
 
-      {/* Custom calendar — shown when preset is custom or when a preset was applied (so user can fine-tune) */}
       {preset !== null && (
-        <div className={`grid gap-3 ${preset === "custom" ? "grid-cols-2" : "grid-cols-2"}`}>
+        <div className="grid grid-cols-2 gap-3">
           <div className="flex flex-col gap-1.5">
             <span className="text-xs text-muted-foreground font-medium">
               {t("labels.deadlineDate")}
@@ -308,9 +465,7 @@ function DeadlineField({
             <Input
               type="date"
               value={form.deadlineDate}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, deadlineDate: e.target.value }))
-              }
+              onChange={(e) => setForm((f) => ({ ...f, deadlineDate: e.target.value }))}
               required
             />
           </div>
@@ -321,9 +476,7 @@ function DeadlineField({
             <Input
               type="time"
               value={form.deadlineTime}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, deadlineTime: e.target.value }))
-              }
+              onChange={(e) => setForm((f) => ({ ...f, deadlineTime: e.target.value }))}
               required
             />
           </div>
@@ -370,7 +523,7 @@ function JudgeField({
         />
         <div className="flex flex-col">
           <span className="text-sm font-medium text-foreground">It&apos;s me</span>
-          <span className="text-xs text-muted-foreground">I will judge this pact myself</span>
+          <span className="text-xs text-muted-foreground">I will verify this pact myself</span>
         </div>
       </label>
 
@@ -429,7 +582,6 @@ function VoteOptionsField({
       </label>
       <p className="text-xs text-muted-foreground -mt-1">{t("labels.voteOptionsHint")}</p>
 
-      {/* Preset shortcuts */}
       <div className="flex flex-wrap gap-2">
         {DEFAULT_PRESETS.map((preset) => {
           const label = preset.join(" / ");
@@ -451,7 +603,6 @@ function VoteOptionsField({
         })}
       </div>
 
-      {/* Current options as removable chips */}
       <div className="flex flex-wrap gap-2 min-h-[32px]">
         {options.map((opt, idx) => (
           <span
@@ -473,7 +624,6 @@ function VoteOptionsField({
         ))}
       </div>
 
-      {/* Add custom option */}
       <div className="flex gap-2">
         <Input
           placeholder={t("placeholders.voteOption")}

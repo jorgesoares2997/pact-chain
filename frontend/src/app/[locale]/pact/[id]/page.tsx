@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/Button";
 import { Card, CardContent } from "@/components/ui/Card";
 import {
   Copy, AlertCircle, CheckCircle2, MessageCircle, Send,
-  X as XIcon, Trophy, CheckCheck, Gavel, Users, Vote,
+  X as XIcon, Trophy, CheckCheck, Gavel, Users, Vote, Target, MessageSquare,
 } from "lucide-react";
 
 // ── Vote tally helpers ───────────────────────────────────────────────────────
@@ -120,10 +120,21 @@ export default function PactDashboard() {
       {/* Header */}
       <div className="flex items-start justify-between mb-8 gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground mb-2">{pact.title}</h1>
-          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold border uppercase tracking-wide ${statusColor[pact.status]}`}>
-            {t(`status.${pact.status}`)}
-          </span>
+          <div className="flex items-center gap-2 mb-2 flex-wrap">
+            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold border uppercase tracking-wide ${statusColor[pact.status]}`}>
+              {t(`status.${pact.status}`)}
+            </span>
+            {pact.pactType === "COMMITMENT" ? (
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-600 border border-amber-500/20">
+                <Target className="h-3 w-3" /> Commitment
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-primary/10 text-primary border border-primary/20">
+                <MessageSquare className="h-3 w-3" /> Opinion
+              </span>
+            )}
+          </div>
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">{pact.title}</h1>
         </div>
         {isLive && !deadlinePassed && (
           <div className="text-right shrink-0 bg-muted/50 p-3 rounded-lg border border-border">
@@ -134,7 +145,22 @@ export default function PactDashboard() {
       </div>
 
       {pact.description && (
-        <p className="text-muted-foreground text-base mb-8 leading-relaxed">{pact.description}</p>
+        <p className="text-muted-foreground text-base mb-6 leading-relaxed">{pact.description}</p>
+      )}
+
+      {pact.pactType === "COMMITMENT" && pact.successCriteria && (
+        <div className="mb-8 rounded-xl border border-amber-500/30 bg-amber-500/5 p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <Target className="h-4 w-4 text-amber-600 shrink-0" />
+            <span className="text-xs font-semibold text-amber-600 uppercase tracking-wider">Success criteria</span>
+          </div>
+          <p className="text-sm text-foreground leading-relaxed">{pact.successCriteria}</p>
+          {pact.evidenceRequirements && (
+            <p className="text-xs text-muted-foreground mt-2">
+              <span className="font-semibold">Evidence: </span>{pact.evidenceRequirements}
+            </p>
+          )}
+        </div>
       )}
 
       {/* Stats */}
@@ -194,22 +220,43 @@ export default function PactDashboard() {
         />
       )}
 
-      {/* Vote button — participant, pact live, deadline not passed */}
-      {isLive && isParticipant && !deadlinePassed && (
-        alreadyVoted ? (
+      {/* Vote options preview + vote button */}
+      {isLive && isParticipant && !deadlinePassed && (() => {
+        const voteOptionList = pact.voteOptions
+          ? pact.voteOptions.split(",").map((o) => o.trim()).filter(Boolean)
+          : ["Yes", "No"];
+        const optionEmoji: Record<string, string> = { Yes: "✅", No: "❌", yes: "✅", no: "❌" };
+
+        return alreadyVoted ? (
           <div className="mb-6 flex items-center gap-2 rounded-xl border border-primary/30 bg-primary/5 px-4 py-3 text-sm text-muted-foreground">
             <CheckCheck className="h-4 w-4 text-primary shrink-0" />
             Your vote has been recorded on-chain.
           </div>
         ) : (
-          <Link
-            href={`/pact/${id}/vote`}
-            className="mb-6 inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 bg-primary text-primary-foreground hover:bg-primary/90 h-11 px-8 w-full"
-          >
-            {t("castVote")}
-          </Link>
-        )
-      )}
+          <div className="mb-6">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
+              Vote options
+            </p>
+            <div className="flex flex-col gap-2 mb-4">
+              {voteOptionList.map((opt) => (
+                <div
+                  key={opt}
+                  className="flex items-center gap-3 px-4 py-3 rounded-xl border border-border bg-card text-sm font-medium text-foreground"
+                >
+                  <span className="text-base">{optionEmoji[opt] ?? opt.slice(0, 1).toUpperCase()}</span>
+                  {opt}
+                </div>
+              ))}
+            </div>
+            <Link
+              href={`/pact/${id}/vote`}
+              className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 bg-primary text-primary-foreground hover:bg-primary/90 h-11 px-8 w-full"
+            >
+              {t("castVote")}
+            </Link>
+          </div>
+        );
+      })()}
 
       {/* Join button */}
       {isLive && address && !isParticipant && !deadlinePassed && (
@@ -390,7 +437,7 @@ function ResolutionSection({
       <div className="flex items-center gap-2 mb-4">
         {modeIcon}
         <span className="text-sm font-semibold text-foreground">
-          Liquidate pact — {pact.resolutionMode}
+          Resolve pact — {pact.resolutionMode}
         </span>
       </div>
 

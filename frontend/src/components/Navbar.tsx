@@ -57,6 +57,12 @@ export default function Navbar() {
               <Link href="/activity" className="text-muted-foreground hover:text-foreground transition-colors">
                 {t("activity")}
               </Link>
+              <Link
+                href="/create"
+                className="inline-flex items-center justify-center rounded-md text-sm font-semibold ring-offset-background transition-colors bg-primary text-primary-foreground hover:bg-primary/90 h-9 px-4"
+              >
+                {t("createPact")}
+              </Link>
             </div>
             
             {address ? (
@@ -120,6 +126,14 @@ export default function Navbar() {
         </div>
 
         <div className="flex flex-col gap-6">
+          <Link
+            href="/create"
+            onClick={() => setIsDrawerOpen(false)}
+            className="inline-flex items-center justify-center rounded-md text-sm font-semibold bg-primary text-primary-foreground hover:bg-primary/90 h-11 px-4 w-full"
+          >
+            {t("createPact")}
+          </Link>
+
           <div className="flex flex-col gap-2">
             <h4 className="text-sm font-medium text-muted-foreground uppercase tracking-wider mb-2">Settings</h4>
             

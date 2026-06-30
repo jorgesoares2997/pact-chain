@@ -17,6 +17,7 @@ public class Pact {
 
     public enum Status { OPEN, ACTIVE, RESOLVED, REFUNDED }
     public enum ResolutionMode { MAJORITY, JUDGE, UNANIMITY }
+    public enum PactType { OPINION, COMMITMENT }
 
     @Id
     private String id;
@@ -59,6 +60,16 @@ public class Pact {
     /** Comma-separated vote option labels, e.g. "Yes,No" or "Alice,Bob,Draw" */
     @Column(name = "vote_options", nullable = false, length = 500)
     private String voteOptions = "Yes,No";
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "pact_type", nullable = false, length = 20)
+    private PactType pactType = PactType.OPINION;
+
+    @Column(name = "success_criteria", columnDefinition = "TEXT")
+    private String successCriteria;
+
+    @Column(name = "evidence_requirements", length = 200)
+    private String evidenceRequirements;
 
     @Column(name = "category_id")
     private Integer categoryId;

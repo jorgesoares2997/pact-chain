@@ -10,9 +10,9 @@ import FeedbackModal from "@/components/FeedbackModal";
 import "../globals.css";
 
 export const metadata: Metadata = {
-  title: "PactChain — Make commitments that stick",
+  title: "PactChain",
   description:
-    "Social commitment dApp on Stellar. Lock USDC in escrow, vote on the winner, get paid automatically.",
+    "PactChain lets groups make binding decisions and hold each other accountable with USDC on Stellar.",
 };
 
 export default async function RootLayout({

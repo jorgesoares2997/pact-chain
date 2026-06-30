@@ -1,3 +1,4 @@
+export type PactType = "OPINION" | "COMMITMENT";
 export type ResolutionMode = "MAJORITY" | "JUDGE" | "UNANIMITY";
 export type PactStatus = "OPEN" | "ACTIVE" | "RESOLVED" | "REFUNDED";
 
@@ -15,6 +16,9 @@ export interface Pact {
   status: PactStatus;
   winner?: string;
   voteOptions?: string;
+  pactType?: PactType;
+  successCriteria?: string;
+  evidenceRequirements?: string;
   createdAt: string;
 }
 
@@ -29,6 +33,9 @@ export interface CreatePactPayload {
   resolutionMode: ResolutionMode;
   judge?: string;
   voteOptions?: string[];
+  pactType?: PactType;
+  successCriteria?: string;
+  evidenceRequirements?: string;
 }
 
 export type InteractionAction =

@@ -1,7 +1,7 @@
 {
   "Index": {
     "title": "Make commitments that stick",
-    "description": "PactChain lets groups create binding social commitments backed by USDC on Stellar. Winners get paid automatically — no middleman.",
+    "description": "PactChain lets groups make binding decisions and hold each other accountable — with USDC at stake on Stellar. Outcomes are enforced automatically.",
     "createPact": "Create a Pact",
     "seeExample": "See an example",
     "features": {
@@ -15,12 +15,13 @@
       },
       "payout": {
         "title": "Auto-payout",
-        "desc": "Winner receives funds instantly. 2% fee funds the protocol treasury."
+        "desc": "Outcome is executed automatically on-chain. 2% fee funds the protocol."
       }
     }
   },
   "Nav": {
     "newPact": "New Pact",
+    "createPact": "Create Pact",
     "connectWallet": "Connect Wallet",
     "connecting": "Connecting…",
     "disconnect": "Disconnect",
@@ -31,6 +32,24 @@
   },
   "Create": {
     "title": "Create a Pact",
+    "selectType": {
+      "title": "What kind of pact?",
+      "subtitle": "Choose the format that fits your use case.",
+      "opinion": {
+        "title": "Opinion Pact",
+        "subtitle": "Group decision",
+        "desc": "The group votes on the best outcome. Perfect for subjective group choices where the majority or unanimity decides the result.",
+        "examples": "Best design, team vote, group choice",
+        "cta": "Create Opinion Pact"
+      },
+      "commitment": {
+        "title": "Commitment Pact",
+        "subtitle": "Personal accountability",
+        "desc": "Define a goal upfront. Participants commit with USDC. A judge or the group verifies whether the goal was met.",
+        "examples": "30-day challenge, fitness goal, project deadline",
+        "cta": "Create Commitment Pact"
+      }
+    },
     "labels": {
       "title": "Title",
       "description": "Description",
@@ -43,14 +62,20 @@
       "mode": "Resolution mode",
       "judge": "Judge Stellar address",
       "voteOptions": "Vote options",
-      "voteOptionsHint": "Define how participants vote on the outcome.",
-      "addOption": "+ Add"
+      "voteOptionsHint": "Define the outcomes participants vote on.",
+      "addOption": "+ Add",
+      "successCriteria": "Success criteria",
+      "evidenceRequirements": "Evidence requirements (optional)"
     },
     "placeholders": {
       "title": "Who will finish the 30-day challenge?",
+      "titleOpinion": "Which option is better?",
+      "titleCommitment": "30-day running challenge",
       "description": "What exactly are participants committing to?",
       "judge": "G…",
-      "voteOption": "Custom option…"
+      "voteOption": "Custom option…",
+      "successCriteria": "Describe exactly what completing this commitment looks like...",
+      "evidenceRequirements": "e.g. GPS screenshot, GitHub commit, photo proof"
     },
     "modes": {
       "MAJORITY": {
@@ -59,7 +84,7 @@
       },
       "JUDGE": {
         "label": "Single Judge",
-        "desc": "Designated address decides the winner"
+        "desc": "Designated address verifies the outcome"
       },
       "UNANIMITY": {
         "label": "Unanimity",
@@ -70,7 +95,8 @@
       "titleRequired": "Title is required",
       "deadlineRequired": "Deadline is required",
       "judgeRequired": "Judge address is required",
-      "deadlineFuture": "Deadline must be in the future"
+      "deadlineFuture": "Deadline must be in the future",
+      "successCriteriaRequired": "Success criteria is required for commitment pacts"
     },
     "deadline": {
       "hint": "Select a quick preset or pick a custom date.",
@@ -83,7 +109,7 @@
     },
     "submit": "Create Pact",
     "submitting": "Creating…",
-    "success": "Pact created! Share the invite link."
+    "success": "Pact created! Share the link."
   },
   "Join": {
     "invalidLink": "Invalid invite link",
@@ -158,7 +184,7 @@
   },
   "Pacts": {
     "title": "Directory",
-    "subtitle": "Discover and join active social commitments.",
+    "subtitle": "Discover and join active pacts.",
     "empty": "No pacts found matching this filter.",
     "filters": {
       "all": "All",

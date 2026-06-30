@@ -44,6 +44,9 @@ public class PactService {
         pact.setResolutionMode(req.getResolutionMode());
         pact.setJudge(req.getJudge());
         pact.setCategoryId(req.getCategoryId());
+        if (req.getPactType() != null) pact.setPactType(req.getPactType());
+        pact.setSuccessCriteria(req.getSuccessCriteria());
+        pact.setEvidenceRequirements(req.getEvidenceRequirements());
 
         if (req.getVoteOptions() != null && req.getVoteOptions().size() >= 2) {
             pact.setVoteOptions(String.join(",", req.getVoteOptions()));

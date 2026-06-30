@@ -319,4 +319,18 @@
 
   </changeSet>
 
+  <changeSet id="004-pact-types" author="pactchain">
+    <addColumn tableName="pacts">
+      <column name="pact_type" type="VARCHAR(20)" defaultValue="OPINION">
+        <constraints nullable="false"/>
+      </column>
+    </addColumn>
+    <addColumn tableName="pacts">
+      <column name="success_criteria" type="TEXT"/>
+    </addColumn>
+    <addColumn tableName="pacts">
+      <column name="evidence_requirements" type="VARCHAR(200)"/>
+    </addColumn>
+  </changeSet>
+
 </databaseChangeLog>

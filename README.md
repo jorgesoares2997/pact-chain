@@ -31,7 +31,7 @@ A personal accountability contract. One person commits to a goal (e.g. "I will s
 🌐 **Frontend:** https://pactchain.vercel.app  
 📄 **Contract WASM Hash:** `659d3762eb592800b267353f0f040730df1781c5b6525a9b8f6259d216120ee0`  
 🔗 **Network:** Stellar Testnet · Token: Circle testnet USDC (`CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA`)  
-📹 **Demo Video:** [Watch on YouTube / Loom](#) _(link added before submission)_
+📹 **Demo Video:** [Watch on YouTube](https://youtu.be/QbG9xFKww4E)
 
 ---
 
@@ -135,7 +135,9 @@ Real user interactions are recorded on-chain and in the backend audit log. The `
 | `pact_won` | Winner claims reward |
 | `pact_refunded` | Draw — participant claims refund |
 
-User feedback is collected via embedded form accessible from every pact page.
+User feedback is collected via Google Form accessible from every pact page. 10+ users onboarded with wallet interactions recorded on-chain.
+
+📋 **Feedback responses:** [View Google Sheets](https://docs.google.com/spreadsheets/d/1kQZiA4avMyT7Cb_YZYtF3dZGBk7clRBcfu8hK-GebsQ/edit?usp=sharing)
 
 ---
 

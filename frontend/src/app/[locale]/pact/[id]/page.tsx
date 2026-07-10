@@ -8,7 +8,7 @@ import { useTranslations } from "next-intl";
 import Spinner from "@/components/Spinner";
 import Countdown from "@/components/Countdown";
 import { api, errorMessage } from "@/lib/api";
-import { joinPact, resolvePact, judgeResolvePact, refundPact as refundPactOnChain } from "@/lib/stellar";
+import { joinPact, resolvePact, judgeResolvePact, refundPact as refundPactOnChain, claimReward } from "@/lib/stellar";
 import { useWallet } from "@/context/WalletContext";
 import type { Pact, Interaction } from "@/types/pact";
 import { Button } from "@/components/ui/Button";
@@ -587,25 +587,21 @@ function ClaimRewardSection({
     if (!address) return;
     setLoading(true);
     try {
-      // Try to trigger resolve() — this is a no-op if already resolved on-chain
-      // (early resolution via _try_resolve inside vote()), but needed for
-      // deadline-based pacts where _try_resolve never fired mid-vote.
-      await resolvePact(pact.contractId, address, signTx);
+      await claimReward(pact.contractId, address, signTx);
       await api.logInteraction(address, "pact_won", pact.id, pact.title);
       setClaimed(true);
       toast.success(`Reward claimed — ${rewardUsdc} USDC sent to your wallet!`);
       onClaimed();
     } catch (err) {
       const msg = errorMessage(err);
-      // InvalidAction/WasmVm = contract already resolved on-chain (early resolution
-      // fired during vote). Payout already happened — treat as success.
-      if (msg.includes("InvalidAction") || msg.includes("WasmVm") || msg.includes("not open")) {
-        await api.logInteraction(address, "pact_won", pact.id, pact.title).catch(() => null);
-        setClaimed(true);
-        toast.success(`${rewardUsdc} USDC was paid when the winning vote was cast.`);
-        onClaimed();
+      if (msg.includes("already claimed")) {
+        toast.error("You already claimed your reward for this pact.");
+      } else if (msg.includes("not a winner") || msg.includes("not resolved")) {
+        toast.error("You are not eligible to claim a reward for this pact.");
+      } else if (msg.includes("InvalidAction") || msg.includes("WasmVm")) {
+        toast.error("Claim failed — the pact may not be resolved yet or you already claimed.");
       } else {
-        toast.error(msg);
+        toast.error("Claim failed. Try again in a moment.");
       }
     } finally {
       setLoading(false);

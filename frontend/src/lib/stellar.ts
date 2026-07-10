@@ -252,6 +252,19 @@ export async function judgeResolvePact(
   );
 }
 
+/** Winner claims their share of the reward pool (MAJORITY / UNANIMITY modes only). */
+export async function claimReward(
+  contractId: string,
+  claimantAddress: string,
+  signTransaction: (xdr: string) => Promise<string>
+): Promise<void> {
+  await invokeContract(
+    contractId, "claim",
+    [new Address(claimantAddress).toScVal()],
+    claimantAddress, signTransaction
+  );
+}
+
 /** Trigger resolution after deadline (MAJORITY / UNANIMITY). */
 export async function resolvePact(
   contractId: string,

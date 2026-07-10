@@ -7,8 +7,8 @@ import toast from "react-hot-toast";
 import { useTranslations } from "next-intl";
 import Spinner from "@/components/Spinner";
 import Countdown from "@/components/Countdown";
-import { api } from "@/lib/api";
-import { joinPact } from "@/lib/stellar";
+import { api, errorMessage } from "@/lib/api";
+import { joinPact, resolvePact, judgeResolvePact, refundPact as refundPactOnChain } from "@/lib/stellar";
 import { useWallet } from "@/context/WalletContext";
 import type { Pact, Interaction } from "@/types/pact";
 import { Button } from "@/components/ui/Button";
@@ -89,7 +89,17 @@ export default function PactDashboard() {
 
   const isParticipant = !!address && participants.includes(address);
   const isCreator = !!address && address === pact.creator;
-  const isWinner = pact.status === "RESOLVED" && !!address && pact.winner === address;
+
+  // pact.winner holds the winning option label (e.g. "Yes"), not a wallet address.
+  // A participant wins if they voted for that option.
+  const myVoteOption = (() => {
+    if (!address) return null;
+    const myVoteInteraction = votes.find((v) => v.wallet === address);
+    if (!myVoteInteraction?.meta) return null;
+    try { return (JSON.parse(myVoteInteraction.meta) as { vote?: string }).vote ?? null; }
+    catch { return null; }
+  })();
+  const isWinner = pact.status === "RESOLVED" && !!pact.winner && myVoteOption === pact.winner;
 
   const canResolve =
     isLive &&
@@ -172,41 +182,39 @@ export default function PactDashboard() {
 
       {/* ── Actions ─────────────────────────────────────────────────── */}
 
-      {/* Winner: claim reward */}
+      {/* Winner: claim reward on-chain */}
       {isWinner && (
-        <div className="mb-8 flex flex-col items-center gap-3 rounded-2xl border border-primary/30 bg-primary/5 p-6 text-center">
-          <Trophy className="h-10 w-10 text-primary" />
-          <p className="text-base font-semibold text-foreground">You won this pact!</p>
-          <p className="text-xs text-muted-foreground mb-2">
-            Your reward was distributed on-chain at resolution.
-          </p>
-          <Button size="lg" className="w-full" onClick={() => toast.success("Reward already claimed on-chain at resolution!")}>
-            Reward Claimed ✓
-          </Button>
-        </div>
+        <ClaimRewardSection
+          pact={pact}
+          votes={votes}
+          participants={participants}
+          signTx={signTx}
+          onClaimed={refreshAll}
+        />
       )}
 
-      {/* Loser: after resolution */}
-      {pact.status === "RESOLVED" && !isWinner && pact.winner && (
+      {/* Non-winner participant: after resolution */}
+      {pact.status === "RESOLVED" && !isWinner && pact.winner && isParticipant && (
         <div className="mb-8 rounded-2xl border border-border bg-muted/30 p-5 text-center">
           <p className="text-sm font-semibold text-foreground mb-1">Pact resolved</p>
-          <p className="text-xs text-muted-foreground font-mono mb-3">
-            Winner: {pact.winner.slice(0, 8)}…{pact.winner.slice(-6)}
+          <p className="text-xs text-muted-foreground mb-3">
+            Winning outcome: <span className="font-semibold text-foreground">{pact.winner}</span>
+            {myVoteOption && myVoteOption !== pact.winner && (
+              <span className="ml-1">(you voted: {myVoteOption})</span>
+            )}
+            {!myVoteOption && (
+              <span className="ml-1 italic">(you did not vote — stake refunded on-chain)</span>
+            )}
           </p>
-          {isParticipant && (
-            <Button size="sm" variant="outline" disabled className="w-full opacity-50">
-              Not a winner this time
-            </Button>
-          )}
+          <Button size="sm" variant="outline" disabled className="w-full opacity-50">
+            {myVoteOption && myVoteOption !== pact.winner ? "Not the winning side this time" : "Stake refunded"}
+          </Button>
         </div>
       )}
 
       {/* Refunded */}
       {pact.status === "REFUNDED" && (
-        <div className="mb-8 rounded-2xl border border-border bg-muted/30 p-5 text-center">
-          <p className="text-sm font-semibold text-foreground mb-1">No consensus — pact refunded</p>
-          <p className="text-xs text-muted-foreground">All participants received their stakes back on-chain.</p>
-        </div>
+        <RefundSection pact={pact} isParticipant={isParticipant} signTx={signTx} onClaimed={refreshAll} />
       )}
 
       {/* Resolution section */}
@@ -220,13 +228,19 @@ export default function PactDashboard() {
         />
       )}
 
-      {/* Vote options preview + vote button */}
-      {isLive && isParticipant && !deadlinePassed && (() => {
+      {/* Judge-mode participant notice — voting not applicable */}
+      {isLive && isParticipant && !deadlinePassed && pact.resolutionMode === "JUDGE" && !alreadyVoted && (
+        <div className="mb-6 rounded-xl border border-border bg-muted/30 px-4 py-3 text-sm text-muted-foreground text-center">
+          <Gavel className="h-4 w-4 inline-block mr-1 mb-0.5" />
+          Your stake is locked. The judge will resolve this pact after the deadline.
+        </div>
+      )}
+
+      {/* Vote options preview + vote button — MAJORITY / UNANIMITY only */}
+      {isLive && isParticipant && !deadlinePassed && pact.resolutionMode !== "JUDGE" && (() => {
         const voteOptionList = pact.voteOptions
           ? pact.voteOptions.split(",").map((o) => o.trim()).filter(Boolean)
           : ["Yes", "No"];
-        const optionEmoji: Record<string, string> = { Yes: "✅", No: "❌", yes: "✅", no: "❌" };
-
         return alreadyVoted ? (
           <div className="mb-6 flex items-center gap-2 rounded-xl border border-primary/30 bg-primary/5 px-4 py-3 text-sm text-muted-foreground">
             <CheckCheck className="h-4 w-4 text-primary shrink-0" />
@@ -238,12 +252,14 @@ export default function PactDashboard() {
               Vote options
             </p>
             <div className="flex flex-col gap-2 mb-4">
-              {voteOptionList.map((opt) => (
+              {voteOptionList.map((opt, idx) => (
                 <div
                   key={opt}
                   className="flex items-center gap-3 px-4 py-3 rounded-xl border border-border bg-card text-sm font-medium text-foreground"
                 >
-                  <span className="text-base">{optionEmoji[opt] ?? opt.slice(0, 1).toUpperCase()}</span>
+                  <span className="w-5 h-5 rounded-full border border-border bg-muted flex items-center justify-center text-xs font-bold text-muted-foreground shrink-0">
+                    {idx + 1}
+                  </span>
                   {opt}
                 </div>
               ))}
@@ -406,22 +422,47 @@ function ResolutionSection({
     try {
       if (pact.resolutionMode === "JUDGE") {
         if (!judgeChoice) { toast.error("Select the winning outcome first."); return; }
+        const optionIndex = voteOptionLabels.indexOf(judgeChoice);
+        await judgeResolvePact(pact.contractId, address, optionIndex, signTx);
         await api.updateWinner(pact.id, judgeChoice);
         toast.success(`Pact resolved — "${judgeChoice}" wins!`);
 
       } else if (noConsensus) {
+        // Draw — call refund on-chain (pushes USDC back to all participants), then update backend
+        await refundPactOnChain(pact.contractId, address, signTx);
         await api.refundPact(pact.id);
-        toast.success("No consensus — pact marked as refunded.");
+        toast.success("Draw — stakes refunded to all participants.");
 
       } else {
-        const winner = previewWinner!;
-        await api.updateWinner(pact.id, winner);
-        toast.success(`Pact resolved — "${winner}" wins!`);
+        // Call resolve on-chain — contract tallies votes and pays out winners
+        await resolvePact(pact.contractId, address, signTx);
+        await api.updateWinner(pact.id, previewWinner!);
+        toast.success(`Pact resolved — "${previewWinner}" wins!`);
       }
 
       onResolved();
     } catch (e) {
-      toast.error((e as Error).message);
+      const msg = errorMessage(e);
+      // Contract auto-resolves during vote() via _try_resolve — calling resolve()
+      // again hits "pact not open". Treat as success and sync backend.
+      if (msg.includes("InvalidAction") || msg.includes("WasmVm") || msg.includes("not open")) {
+        if (noConsensus) {
+          await api.refundPact(pact.id).catch(() => null);
+          toast.success("Draw — stakes were refunded automatically when the last vote was cast.");
+        } else {
+          await api.updateWinner(pact.id, previewWinner!).catch(() => null);
+          toast.success(`Already resolved on-chain — "${previewWinner}" wins!`);
+        }
+        onResolved();
+      } else if (msg.includes("deadline not reached") || msg.includes("deadline")) {
+        toast.error("The deadline hasn't passed yet. Wait until the deadline to resolve.");
+      } else if (msg.includes("not a participant") || msg.includes("participant")) {
+        toast.error("Only participants can trigger resolution.");
+      } else if (msg.includes("use judge_resolve") || msg.includes("judge")) {
+        toast.error("This pact uses judge mode — only the judge can resolve it.");
+      } else {
+        toast.error("Resolution failed. Try again or wait for the deadline to pass.");
+      }
     } finally {
       setLoading(false);
     }
@@ -515,6 +556,164 @@ function ResolutionSection({
   );
 }
 
+// ── Claim reward (winner) ────────────────────────────────────────────────────
+
+function ClaimRewardSection({
+  pact,
+  votes,
+  participants,
+  signTx,
+  onClaimed,
+}: {
+  pact: Pact;
+  votes: Interaction[];
+  participants: string[];
+  signTx: (xdr: string) => Promise<string>;
+  onClaimed: () => void;
+}) {
+  const { address } = useWallet();
+  const [loading, setLoading] = useState(false);
+  const [claimed, setClaimed] = useState(false);
+
+  // Calculate the winner's share: (total_staked * 0.98) / winner_count
+  const winnerCount = votes.filter((v) => {
+    try { return (JSON.parse(v.meta ?? "{}") as { vote?: string }).vote === pact.winner; }
+    catch { return false; }
+  }).length || 1;
+  const totalStaked = pact.stakeAmount * participants.length;
+  const rewardUsdc = ((totalStaked * 0.98) / winnerCount / 1e7).toFixed(2);
+
+  async function handleClaim() {
+    if (!address) return;
+    setLoading(true);
+    try {
+      // Try to trigger resolve() — this is a no-op if already resolved on-chain
+      // (early resolution via _try_resolve inside vote()), but needed for
+      // deadline-based pacts where _try_resolve never fired mid-vote.
+      await resolvePact(pact.contractId, address, signTx);
+      await api.logInteraction(address, "pact_won", pact.id, pact.title);
+      setClaimed(true);
+      toast.success(`Reward claimed — ${rewardUsdc} USDC sent to your wallet!`);
+      onClaimed();
+    } catch (err) {
+      const msg = errorMessage(err);
+      // InvalidAction/WasmVm = contract already resolved on-chain (early resolution
+      // fired during vote). Payout already happened — treat as success.
+      if (msg.includes("InvalidAction") || msg.includes("WasmVm") || msg.includes("not open")) {
+        await api.logInteraction(address, "pact_won", pact.id, pact.title).catch(() => null);
+        setClaimed(true);
+        toast.success(`${rewardUsdc} USDC was paid when the winning vote was cast.`);
+        onClaimed();
+      } else {
+        toast.error(msg);
+      }
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  if (claimed) {
+    return (
+      <div className="mb-8 flex flex-col items-center gap-3 rounded-2xl border border-primary/30 bg-primary/5 p-6 text-center">
+        <Trophy className="h-10 w-10 text-primary" />
+        <p className="text-base font-semibold text-foreground">Reward received!</p>
+        <p className="text-xs text-muted-foreground">
+          {rewardUsdc} USDC — winning side: <span className="font-semibold text-foreground">{pact.winner}</span>
+        </p>
+        <Button size="lg" className="w-full" disabled>
+          Reward Claimed ✓
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mb-8 flex flex-col items-center gap-3 rounded-2xl border border-primary/30 bg-primary/5 p-6 text-center">
+      <Trophy className="h-10 w-10 text-primary" />
+      <p className="text-base font-semibold text-foreground">You picked the winning outcome!</p>
+      <p className="text-xs text-muted-foreground mb-1">
+        Winning side: <span className="font-semibold text-foreground">{pact.winner}</span>.
+        Your estimated reward: <span className="font-semibold text-foreground">{rewardUsdc} USDC</span>.
+      </p>
+      <p className="text-xs text-muted-foreground mb-2">
+        Click to trigger the on-chain payout. If it already resolved automatically, your USDC is already in your wallet.
+      </p>
+      <Button size="lg" className="w-full" onClick={handleClaim} disabled={loading}>
+        {loading && <Spinner size="sm" />}
+        {loading ? "Claiming…" : `Claim ${rewardUsdc} USDC`}
+      </Button>
+    </div>
+  );
+}
+
+// ── Claim refund (draw / no consensus) ──────────────────────────────────────
+
+function RefundSection({
+  pact,
+  isParticipant,
+  signTx,
+  onClaimed,
+}: {
+  pact: Pact;
+  isParticipant: boolean;
+  signTx: (xdr: string) => Promise<string>;
+  onClaimed: () => void;
+}) {
+  const { address } = useWallet();
+  const [loading, setLoading] = useState(false);
+  const [claimed, setClaimed] = useState(false);
+
+  async function handleClaim() {
+    if (!address) return;
+    setLoading(true);
+    try {
+      await refundPactOnChain(pact.contractId, address, signTx);
+      await api.logInteraction(address, "pact_refunded", pact.id, pact.title);
+      setClaimed(true);
+      toast.success("Refund claimed — stakes returned to all participants.");
+      onClaimed();
+    } catch (e) {
+      const msg = errorMessage(e);
+      if (msg.includes("InvalidAction") || msg.includes("WasmVm")) {
+        toast.error("Refund already processed — stakes were returned when the pact resolved.");
+      } else if (msg.includes("deadline")) {
+        toast.error("The deadline hasn't passed yet.");
+      } else {
+        toast.error("Refund failed. Try again in a moment.");
+      }
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  if (claimed) {
+    return (
+      <div className="mb-8 rounded-2xl border border-border bg-muted/30 p-5 text-center">
+        <p className="text-sm font-semibold text-foreground mb-1">Refund complete</p>
+        <p className="text-xs text-muted-foreground">All stakes have been returned on-chain.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mb-8 rounded-2xl border border-amber-400/30 bg-amber-500/5 p-5">
+      <p className="text-sm font-semibold text-foreground mb-1">Draw — no consensus reached</p>
+      <p className="text-xs text-muted-foreground mb-4">
+        The vote ended in a draw. All participants get their stake back.
+        {isParticipant
+          ? " Trigger the on-chain refund below — one transaction returns everyone's USDC."
+          : " A participant must trigger the on-chain refund."}
+      </p>
+      {isParticipant && (
+        <Button onClick={handleClaim} disabled={loading} variant="outline" size="sm" className="w-full">
+          {loading && <Spinner size="sm" />}
+          {loading ? "Processing refund…" : `Claim refund — ${(pact.stakeAmount / 1e7).toFixed(2)} USDC`}
+        </Button>
+      )}
+    </div>
+  );
+}
+
 // ── Join from pact page ──────────────────────────────────────────────────────
 
 function JoinFromPactButton({
@@ -543,7 +742,20 @@ function JoinFromPactButton({
       toast.success(`Joined! ${stakeUsdc} USDC staked on-chain.`);
       onJoined();
     } catch (e) {
-      toast.error((e as Error).message);
+      const msg = errorMessage(e);
+      if (msg.includes("already joined") || msg.includes("already a participant")) {
+        toast.error("Your wallet has already joined this pact.");
+      } else if (msg.includes("pact full") || msg.includes("full")) {
+        toast.error("This pact is full — no more participants can join.");
+      } else if (msg.includes("deadline") || msg.includes("deadline passed")) {
+        toast.error("The deadline has passed — this pact is no longer accepting participants.");
+      } else if (msg.includes("pact not open") || msg.includes("InvalidAction") || msg.includes("WasmVm")) {
+        toast.error("This pact is no longer open for joining.");
+      } else if (msg.includes("insufficient") || msg.includes("balance")) {
+        toast.error(`Insufficient USDC balance. You need ${stakeUsdc} USDC to join.`);
+      } else {
+        toast.error("Failed to join. Make sure you have enough USDC and try again.");
+      }
     } finally {
       setLoading(false);
       setStep("idle");

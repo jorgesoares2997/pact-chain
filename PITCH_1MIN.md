@@ -8,17 +8,18 @@
 
 | SCRIPT | SCREEN |
 |---|---|
-| Every day, people make commitments they don't keep. Not because they're dishonest — but because there are no real consequences. A handshake has no enforcement. A promise has no escrow. 
-| PactChain changes that. 
-| We built a social accountability dApp on Stellar where groups create binding pacts and lock USDC in a Soroban smart contract. No middleman holds the money. The contract does. 
-| There are two pact types. Opinion Pacts let groups vote on a shared question — the winning side collects the pool. |
-| Commitment Pacts let individuals put USDC on a personal goal — deliver the result, get it back. Miss it, and the witnesses split it. |
-| Click Opinion Pact — the form is clean and simple. Title, stake amount, deadline, vote options. |
-| Once created, participants join via invite link and stake USDC on-chain. Every wallet, every vote, every payout — all signed and recorded on Stellar. |
-| Votes are signed by wallets. Payouts are automatic. Two percent goes to the protocol. The rest goes directly to the winners. |
-| We support every major Stellar wallet — Freighter, LOBSTR, xBull, and mobile deep links via WalletConnect. 
-| The smart contract is live on Stellar Testnet today. The frontend is on Vercel, the backend on Railway — with a full on-chain audit log of every action. 
-| PactChain. Social commitments with real consequences. No lawyers. No platforms. No trust required. Try it at pactchain.vercel.app. 
+| Every day, people make commitments they don't keep. Not because they're dishonest — but because there are no real consequences. A handshake has no enforcement. A promise has no escrow. | Home page hero |
+| PactChain changes that. | Tagline animates in |
+| We built a social accountability dApp on Stellar where groups create binding pacts and lock USDC in a Soroban smart contract. No middleman holds the money. The contract does. | Pact list page |
+| There are two pact types. Opinion Pacts let groups vote on a shared outcome — the winning side earns the losers' stakes. | Click into an Opinion Pact |
+| Commitment Pacts let individuals put USDC on a personal goal. A judge evaluates the result and decides who wins. | Click into a Commitment Pact |
+| Creating a pact takes thirty seconds. Title, stake amount, deadline, options. | Create pact form filling in |
+| Participants join via invite link and stake USDC on-chain. Every wallet connection, every signature — recorded on Stellar. | Join flow, wallet modal |
+| When the deadline passes, the creator resolves the pact on-chain. The contract tallies the votes and marks the winner. | Resolution button, signing modal |
+| Only winners claim their reward. Losers lose their stake. No refunds, no exceptions — that's what makes the commitment real. | Claim button, USDC arriving in wallet |
+| Two percent goes to the protocol. The rest goes directly to each winner's wallet — pulled individually, signed by their own key. | Stellar Explorer showing transfer |
+| We support Freighter, LOBSTR, xBull, and WalletConnect for mobile. The contract is live on Stellar Testnet today. | Wallet picker modal |
+| PactChain. Social commitments with real consequences. No lawyers. No platforms. No trust required. | URL bar: pactchain.vercel.app |
 
 ---
 

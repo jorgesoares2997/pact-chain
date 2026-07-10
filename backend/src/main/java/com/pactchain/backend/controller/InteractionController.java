@@ -28,6 +28,7 @@ public class InteractionController {
             @RequestParam(required = false) String wallet,
             @RequestParam(required = false) String pactId,
             @RequestParam(defaultValue = "50") int limit) {
+        if (pactId != null && wallet != null) return pactService.getInteractionsByPactAndWallet(pactId, wallet, limit);
         if (wallet != null) return pactService.getInteractionsByWallet(wallet, limit);
         if (pactId != null) return pactService.getInteractionsByPact(pactId, limit);
         return pactService.getAllInteractions(limit);

@@ -235,6 +235,10 @@ public class PactService {
         return interactionRepo.findByPactIdOrderByCreatedAtDesc(pactId, PageRequest.of(0, limit));
     }
 
+    public List<WalletInteraction> getInteractionsByPactAndWallet(String pactId, String wallet, int limit) {
+        return interactionRepo.findByPactIdAndWalletOrderByCreatedAtDesc(pactId, wallet, PageRequest.of(0, limit));
+    }
+
     // ── Private helpers ───────────────────────────────────────────────────────
 
     private String generateInvite(Pact pact) {

@@ -153,9 +153,6 @@ impl PactChainContract {
 
         env.storage().instance().set(&DataKey::Votes, &votes);
         env.storage().instance().set(&DataKey::VoteCount, &vote_count);
-
-        // Attempt early resolution on every vote
-        Self::_try_resolve(&env);
     }
 
     /// Judge resolution: judge picks the winning option index directly.

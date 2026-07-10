@@ -46,7 +46,7 @@ export async function submitSigned(signedXdr: string) {
   const sendResult = await rpcServer.sendTransaction(tx);
 
   if (sendResult.status === "ERROR") {
-    throw new Error(sendResult.errorResultXdr || JSON.stringify(sendResult, null, 2));
+    throw new Error(sendResult.errorResult?.toXDR("base64") || JSON.stringify(sendResult, null, 2));
   }
 
   let getResult: SorobanRpc.Api.GetTransactionResponse | undefined;

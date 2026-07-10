@@ -111,3 +111,16 @@ export const api = {
       }),
     }),
 };
+
+// Normalize any thrown value (Error, plain object, string) to a readable message.
+// Wallet kit and Stellar SDK sometimes throw plain objects instead of Errors.
+export function errorMessage(err: unknown, fallback = "Something went wrong"): string {
+  if (err instanceof Error) return err.message || fallback;
+  if (typeof err === "string") return err || fallback;
+  try {
+    const s = JSON.stringify(err);
+    return s && s !== "{}" ? s : fallback;
+  } catch {
+    return fallback;
+  }
+}

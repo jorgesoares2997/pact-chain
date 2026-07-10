@@ -8,7 +8,7 @@ import { useTranslations } from "next-intl";
 import ConnectWalletGate from "@/components/ConnectWalletGate";
 import Spinner from "@/components/Spinner";
 import { useWallet } from "@/context/WalletContext";
-import { api } from "@/lib/api";
+import { api, errorMessage } from "@/lib/api";
 import { deployAndInitializePact } from "@/lib/stellar";
 import type { PactType, ResolutionMode } from "@/types/pact";
 import { Input } from "@/components/ui/Input";
@@ -199,7 +199,8 @@ function CreatePactForm({ pactType, onBack }: { pactType: PactType; onBack: () =
       toast.success(t("success"));
       router.push(`/pact/${result.id}`);
     } catch (err) {
-      toast.error((err as Error).message ?? "Failed to create pact");
+      console.error("createPact error:", err);
+      toast.error(errorMessage(err, "Failed to create pact"));
     } finally {
       setLoading(false);
     }

@@ -7,7 +7,7 @@ import { useTranslations } from "next-intl";
 import ConnectWalletGate from "@/components/ConnectWalletGate";
 import Spinner from "@/components/Spinner";
 import { useWallet } from "@/context/WalletContext";
-import { api } from "@/lib/api";
+import { api, errorMessage } from "@/lib/api";
 import { votePact } from "@/lib/stellar";
 import type { Pact } from "@/types/pact";
 import { Button } from "@/components/ui/Button";
@@ -55,7 +55,19 @@ function VoteInner() {
       toast.success("Vote recorded on-chain!");
       router.push(`/pact/${id}`);
     } catch (e) {
-      toast.error((e as Error).message);
+      const msg = errorMessage(e);
+      if (msg.includes("already voted")) {
+        toast.error("You already voted on this pact.");
+        setAlreadyVoted(true);
+      } else if (msg.includes("not a participant") || msg.includes("participant")) {
+        toast.error("You need to join the pact before voting.");
+      } else if (msg.includes("deadline") || msg.includes("InvalidAction") || msg.includes("WasmVm")) {
+        toast.error("Voting is closed — the pact has already resolved or the deadline passed.");
+      } else if (msg.includes("trustline") || msg.includes("Contract, #13")) {
+        toast.error("Transaction failed due to a missing USDC trustline. Contact support.");
+      } else {
+        toast.error("Vote failed. Make sure you're connected with the right wallet and try again.");
+      }
     } finally {
       setSubmitting(false);
     }
@@ -71,6 +83,28 @@ function VoteInner() {
   const options = pact.voteOptions
     ? pact.voteOptions.split(",").map((o) => o.trim()).filter(Boolean)
     : ["Yes", "No"];
+
+  const nowSec = Math.floor(Date.now() / 1000);
+
+  // Guard: JUDGE mode pacts are resolved by the judge, not by participant votes
+  if (pact.resolutionMode === "JUDGE") {
+    return (
+      <main className="max-w-md mx-auto px-4 py-8 sm:py-12 flex flex-col items-center gap-6 text-center">
+        <p className="text-sm text-muted-foreground">This pact is resolved by a judge — participant voting is not available.</p>
+        <Button variant="outline" onClick={() => router.push(`/pact/${id}`)}>Back to pact</Button>
+      </main>
+    );
+  }
+
+  // Guard: deadline already passed on the client clock
+  if (nowSec > pact.deadline) {
+    return (
+      <main className="max-w-md mx-auto px-4 py-8 sm:py-12 flex flex-col items-center gap-6 text-center">
+        <p className="text-sm text-muted-foreground">The voting deadline has passed. Waiting for resolution.</p>
+        <Button variant="outline" onClick={() => router.push(`/pact/${id}`)}>Back to pact</Button>
+      </main>
+    );
+  }
 
   if (alreadyVoted) {
     return (
@@ -89,13 +123,6 @@ function VoteInner() {
     );
   }
 
-  const optionEmoji: Record<string, string> = {
-    Yes: "✅",
-    No: "❌",
-    yes: "✅",
-    no: "❌",
-  };
-
   return (
     <main className="max-w-md mx-auto px-4 py-8 sm:py-12">
       <div className="mb-8">
@@ -109,7 +136,7 @@ function VoteInner() {
       </div>
 
       <div className="flex flex-col gap-3 mb-8">
-        {options.map((option) => {
+        {options.map((option, idx) => {
           const isSelected = selected === option;
           return (
             <button
@@ -122,11 +149,13 @@ function VoteInner() {
               }`}
             >
               <div
-                className={`w-12 h-12 rounded-full flex items-center justify-center text-xl shrink-0 transition-colors ${
-                  isSelected ? "bg-primary/10" : "bg-muted"
+                className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold shrink-0 transition-colors ${
+                  isSelected
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-muted text-muted-foreground border border-border"
                 }`}
               >
-                {optionEmoji[option] ?? option.slice(0, 1).toUpperCase()}
+                {idx + 1}
               </div>
               <span className={`flex-1 text-base font-semibold ${
                 isSelected ? "text-primary" : "text-foreground"

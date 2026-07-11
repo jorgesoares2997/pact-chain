@@ -9,5 +9,9 @@ data/
 frontend/pnpm-lock.yaml
 frontend/pnpm-workspace.yaml
 .vercel
+
+# Markdown
 VIDEO_GUIDE.md
 PITCH_1MIN.md
+README(1).md
+README (1).md

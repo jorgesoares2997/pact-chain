@@ -1,3 +1,8 @@
+<div align="center">
+  <img src="frontend/src/app/icon.png" alt="Pact-chain" width="120" />
+</div>
+
+
 # PactChain
 
 > **Social commitments with real consequences.**
@@ -239,6 +244,21 @@ PORT=8080
 | `invite_links` | Short-code invite URLs for sharing |
 
 ---
+
+## 📸 Prints, vídeo, deploy ou exemplos de uso
+- **Deploy:** [https://pact-chain.vercel.app/](https://pact-chain.vercel.app/)
+
+> *Screenshots da aplicação*
+
+### Home Page
+![Home Page](frontend/public/screenshots/home-pact-chain-jorge.png)
+
+### Pacts Choice Page
+![Pacts Choice Page](frontend/public/screenshots/pacts-choice-jorge.png)
+
+### Pact Show Page
+![Pact Show Page](frontend/public/screenshots/pacts-show-jorge.png)
+
 
 ## Repository Structure
 

@@ -13,6 +13,14 @@ const eslintConfig = defineConfig([
     "build/**",
     "next-env.d.ts",
   ]),
+  // Downgrade experimental react-compiler rules to warnings.
+  // These rules are too strict for a project not yet opted into the compiler.
+  {
+    rules: {
+      "react-hooks/purity": "warn",
+      "react-hooks/rules-of-reactive-values": "warn",
+    },
+  },
 ]);
 
 export default eslintConfig;

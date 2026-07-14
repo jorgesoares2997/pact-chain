@@ -13,12 +13,12 @@ export default getRequestConfig(async ({locale}) => {
       const path = reqHeaders.get("x-invoke-path") || reqHeaders.get("next-url") || "";
       if (path.startsWith("/pt")) resolvedLocale = "pt";
       else resolvedLocale = "en";
-    } catch (e) {
+    } catch {
       resolvedLocale = "en";
     }
   }
 
-  if (!locales.includes(resolvedLocale as any)) {
+  if (!locales.includes(resolvedLocale as string)) {
     notFound();
   }
 

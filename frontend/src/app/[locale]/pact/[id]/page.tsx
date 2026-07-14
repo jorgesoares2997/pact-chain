@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import toast from "react-hot-toast";
@@ -83,7 +83,8 @@ export default function PactDashboard() {
   if (!pact) return <div className="flex justify-center items-center min-h-[50vh]"><Spinner size="lg" /></div>;
 
   const stakeUsdc = (pact.stakeAmount / 1e7).toFixed(2);
-  const nowSec = Math.floor(Date.now() / 1000);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const nowSec = useMemo(() => Math.floor(Date.now() / 1000), []);
   const deadlinePassed = nowSec > pact.deadline;
   const isLive = pact.status === "OPEN" || pact.status === "ACTIVE";
 

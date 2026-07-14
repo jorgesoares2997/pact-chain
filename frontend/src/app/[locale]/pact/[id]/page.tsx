@@ -66,6 +66,8 @@ export default function PactDashboard() {
     api.getParticipants(id).then(setParticipants);
   }
 
+  const nowSec = useMemo(() => Math.floor(Date.now() / 1000), []);
+
   useEffect(() => { refreshAll(); }, [id]);
   useEffect(() => {
     if (address) api.hasVoted(id, address).then(setAlreadyVoted);
@@ -83,8 +85,6 @@ export default function PactDashboard() {
   if (!pact) return <div className="flex justify-center items-center min-h-[50vh]"><Spinner size="lg" /></div>;
 
   const stakeUsdc = (pact.stakeAmount / 1e7).toFixed(2);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const nowSec = useMemo(() => Math.floor(Date.now() / 1000), []);
   const deadlinePassed = nowSec > pact.deadline;
   const isLive = pact.status === "OPEN" || pact.status === "ACTIVE";
 
